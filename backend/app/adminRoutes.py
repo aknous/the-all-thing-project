@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import getDb
 from .adminAuth import requireAdmin
+from .closeService import closePollsForDate
 
 from .models import (
     PollCategory,
@@ -416,3 +417,12 @@ async def listInstances(pollDate: date = Query(...), db: AsyncSession = Depends(
 async def runRollover(pollDate: date = Query(...), db: AsyncSession = Depends(getDb)):
     createdCount = await ensureInstancesForDate(db, pollDate)
     return {"ok": True, "pollDate": str(pollDate), "createdCount": createdCount}
+
+
+@router.post("/close")
+async def closePolls(
+    pollDate: date = Query(...),
+    db: AsyncSession = Depends(getDb),
+):
+    closedCount = await closePollsForDate(db, pollDate)
+    return {"ok": True, "pollDate": str(pollDate), "closedCount": closedCount}
