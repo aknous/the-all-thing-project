@@ -1,0 +1,100 @@
+name: Daily Poll Rollover
+
+on:
+  schedule:
+    # Run at 3:00 AM Eastern year-round (adjusts for DST)
+    # 07:00 UTC during DST (mid-March to early November): 3:00 AM EDT
+    - cron: '0 7 15-31 3 *'  # March 15-31
+    - cron: '0 7 * 4-10 *'   # April-October
+    - cron: '0 7 1-7 11 *'   # November 1-7 (before DST ends)
+    # 08:00 UTC during standard time (early November to mid-March): 3:00 AM EST  
+    - cron: '0 8 8-30 11 *'  # November 8-30 (after DST ends)
+    - cron: '0 8 * 12 *'     # December
+    - cron: '0 8 * 1-2 *'    # January-February
+    - cron: '0 8 1-14 3 *'   # March 1-14 (before DST starts)
+  
+  # Allow manual triggering from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to rollover (YYYY-MM-DD, leave empty for today)'
+        required: false
+        type: string
+
+jobs:
+  rollover:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Get current date in Eastern timezone
+        id: date
+        run: |
+          # Install timezone tools
+          sudo apt-get update
+          sudo apt-get install -y tzdata
+          
+          # Get current date in Eastern timezone
+          export TZ=America/New_York
+          EASTERN_DATE=$(date +%Y-%m-%d)
+          YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+          
+          echo "today=$EASTERN_DATE" >> $GITHUB_OUTPUT
+          echo "yesterday=$YESTERDAY" >> $GITHUB_OUTPUT
+          
+          echo "Eastern Date: $EASTERN_DATE"
+          echo "Yesterday: $YESTERDAY"
+      
+      - name: Close yesterday's polls
+        run: |
+          POLL_DATE="${{ inputs.date || steps.date.outputs.yesterday }}"
+          
+          echo "Closing polls for date: $POLL_DATE"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "xadminkey: ${{ secrets.ADMIN_KEY }}" \
+            "https://the-all-thing-backend.fly.dev/admin/close?pollDate=$POLL_DATE")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Response Code: $http_code"
+          echo "Response Body: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Failed to close polls"
+            exit 1
+          fi
+          
+          echo "✓ Successfully closed polls for $POLL_DATE"
+      
+      - name: Run rollover for today
+        run: |
+          POLL_DATE="${{ inputs.date || steps.date.outputs.today }}"
+          
+          echo "Running rollover for date: $POLL_DATE"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "xadminkey: ${{ secrets.ADMIN_KEY }}" \
+            "https://the-all-thing-backend.fly.dev/admin/rollover?pollDate=$POLL_DATE")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Response Code: $http_code"
+          echo "Response Body: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Failed to run rollover"
+            exit 1
+          fi
+          
+          echo "✓ Successfully ran rollover for $POLL_DATE"
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Daily Rollover Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date**: ${{ steps.date.outputs.today }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Closed**: Yesterday's polls (${{ steps.date.outputs.yesterday }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rolled Over**: Today's polls (${{ steps.date.outputs.today }})" >> $GITHUB_STEP_SUMMARY
