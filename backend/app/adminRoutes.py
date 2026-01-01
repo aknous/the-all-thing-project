@@ -12,8 +12,10 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import getDb
-from .adminAuth import requireAdmin
-from .closeService import closePollsForDate
+from .adminAuth import requireAdmin, AdminContext
+from .closeService import closeAndSnapshotForDate
+from . import sanitize
+from .auditLog import logAdminAction
 
 from .models import (
     PollCategory,
@@ -28,7 +30,7 @@ from .rollover import ensureInstancesForDate
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(requireAdmin)],
+    # Note: requireAdmin now returns AdminContext, so endpoints should accept it as dependency
 )
 
 # -----------------------------
@@ -132,18 +134,39 @@ def serializePlan(plan: PollPlan, options: list[PollPlanOption]) -> dict:
 # -----------------------------
 
 @router.post("/categories")
-async def createCategory(payload: CategoryCreateInput, db: AsyncSession = Depends(getDb)):
-    existing = (await db.execute(select(PollCategory).where(PollCategory.key == payload.key))).scalar_one_or_none()
+async def createCategory(
+    payload: CategoryCreateInput,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin)
+):
+    # Sanitize inputs
+    sanitizedKey = sanitize.sanitizeKey(payload.key, maxLength=64)
+    sanitizedName = sanitize.sanitizeName(payload.name, maxLength=128)
+    
+    existing = (await db.execute(select(PollCategory).where(PollCategory.key == sanitizedKey))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Category key already exists")
 
     category = PollCategory(
         id=newId(),
-        key=payload.key,
-        name=payload.name,
+        key=sanitizedKey,
+        name=sanitizedName,
         sortOrder=payload.sortOrder,
     )
     db.add(category)
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="category_created",
+        entityType="category",
+        entityId=category.id,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={"key": sanitizedKey, "name": sanitizedName, "sortOrder": payload.sortOrder}
+    )
+    
     await db.commit()
     return {"ok": True, "category": serializeCategory(category)}
 
@@ -159,7 +182,7 @@ async def updateCategory(categoryId: str, payload: CategoryUpdateInput, db: Asyn
         raise HTTPException(status_code=404, detail="Category not found")
 
     if payload.name is not None:
-        category.name = payload.name
+        category.name = sanitize.sanitizeName(payload.name, maxLength=128)
     if payload.sortOrder is not None:
         category.sortOrder = payload.sortOrder
 
@@ -172,6 +195,11 @@ async def updateCategory(categoryId: str, payload: CategoryUpdateInput, db: Asyn
 
 @router.post("/templates")
 async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depends(getDb)):
+    # Sanitize inputs
+    sanitizedKey = sanitize.sanitizeKey(payload.key, maxLength=64)
+    sanitizedTitle = sanitize.sanitizeTitle(payload.title, maxLength=256)
+    sanitizedQuestion = sanitize.sanitizeQuestion(payload.question, maxLength=1000)
+    
     # validate category exists
     category = (await db.execute(select(PollCategory).where(PollCategory.id == payload.categoryId))).scalar_one_or_none()
     if not category:
@@ -179,7 +207,7 @@ async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depend
 
     # enforce unique (categoryId, key)
     existing = (await db.execute(
-        select(PollTemplate).where(PollTemplate.categoryId == payload.categoryId, PollTemplate.key == payload.key)
+        select(PollTemplate).where(PollTemplate.categoryId == payload.categoryId, PollTemplate.key == sanitizedKey)
     )).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Template key already exists in this category")
@@ -190,9 +218,9 @@ async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depend
     template = PollTemplate(
         id=newId(),
         categoryId=payload.categoryId,
-        key=payload.key,
-        title=payload.title,
-        question=payload.question,
+        key=sanitizedKey,
+        title=sanitizedTitle,
+        question=sanitizedQuestion,
         pollType=payload.pollType,
         maxRank=payload.maxRank,
         audience=payload.audience,
@@ -206,7 +234,7 @@ async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depend
         db.add(PollTemplateOption(
             id=newId(),
             templateId=template.id,
-            label=opt.label,
+            label=sanitize.sanitizeLabel(opt.label, maxLength=256),
             sortOrder=opt.sortOrder,
         ))
 
@@ -251,9 +279,9 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
         raise HTTPException(status_code=404, detail="Template not found")
 
     if payload.title is not None:
-        template.title = payload.title
+        template.title = sanitize.sanitizeTitle(payload.title, maxLength=256)
     if payload.question is not None:
-        template.question = payload.question
+        template.question = sanitize.sanitizeQuestion(payload.question, maxLength=1000)
     if payload.pollType is not None:
         template.pollType = payload.pollType
     if payload.maxRank is not None:
@@ -291,7 +319,7 @@ async def replaceTemplateOptions(templateId: str, payload: TemplateReplaceOption
         db.add(PollTemplateOption(
             id=newId(),
             templateId=templateId,
-            label=opt.label,
+            label=sanitize.sanitizeLabel(opt.label, maxLength=256),
             sortOrder=opt.sortOrder,
         ))
 
@@ -313,18 +341,20 @@ async def upsertPlan(templateId: str, payload: PlanUpsertInput, db: AsyncSession
         select(PollPlan).where(PollPlan.templateId == templateId, PollPlan.pollDate == payload.pollDate)
     )).scalar_one_or_none()
 
+    sanitizedQuestionOverride = sanitize.sanitizeQuestion(payload.questionOverride, maxLength=1000)
+
     if not plan:
         plan = PollPlan(
             id=newId(),
             templateId=templateId,
             pollDate=payload.pollDate,
             isEnabled=payload.isEnabled,
-            questionOverride=payload.questionOverride,
+            questionOverride=sanitizedQuestionOverride,
         )
         db.add(plan)
     else:
         plan.isEnabled = payload.isEnabled
-        plan.questionOverride = payload.questionOverride
+        plan.questionOverride = sanitizedQuestionOverride
 
     await db.commit()
     return {"ok": True, "planId": plan.id}
@@ -360,7 +390,7 @@ async def replacePlanOptions(templateId: str, payload: PlanReplaceOptionsInput, 
         db.add(PollPlanOption(
             id=newId(),
             planId=plan.id,
-            label=opt.label,
+            label=sanitize.sanitizeLabel(opt.label, maxLength=256),
             sortOrder=opt.sortOrder,
         ))
 
@@ -424,5 +454,194 @@ async def closePolls(
     pollDate: date = Query(...),
     db: AsyncSession = Depends(getDb),
 ):
-    closedCount = await closePollsForDate(db, pollDate)
-    return {"ok": True, "pollDate": str(pollDate), "closedCount": closedCount}
+    """Close all polls for a specific date and create snapshots"""
+    result = await closeAndSnapshotForDate(db, pollDate)
+    return {
+        "ok": True,
+        "pollDate": str(pollDate),
+        "closedCount": result.get("closedCount", 0),
+        "snapshotCount": result.get("snapCount", 0),
+    }
+
+@router.post("/instances/{instanceId}/close")
+async def closeInstance(
+    instanceId: str,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Close and snapshot a specific poll instance"""
+    from .snapshotService import upsertResultSnapshot
+    
+    # Get the instance
+    instance = (await db.execute(
+        select(PollInstance).where(PollInstance.id == instanceId)
+    )).scalar_one_or_none()
+    
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    if instance.status == "CLOSED":
+        raise HTTPException(status_code=409, detail="Instance already closed")
+    
+    # Create snapshot
+    snapshotOk = await upsertResultSnapshot(db, instanceId)
+    
+    # Close the instance
+    instance.status = "CLOSED"
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="instance_closed",
+        entityType="instance",
+        entityId=instanceId,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={"status": "CLOSED", "snapshotCreated": snapshotOk}
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "instanceId": instanceId,
+        "snapshotCreated": snapshotOk,
+        "pollDate": str(instance.pollDate),
+        "templateId": instance.templateId,
+    }
+
+@router.post("/instances/{instanceId}/replace")
+async def replaceInstance(
+    instanceId: str,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """
+    Replace a poll instance by closing the current one and creating a new one.
+    The new instance will use the template + any plan overrides for that date.
+    
+    Workflow for mid-day corrections:
+    1. Update the PollPlan for this date (question/options) via PUT /admin/templates/{templateId}/plan
+    2. Call this endpoint to replace the instance
+    3. New instance will use the updated plan settings
+    
+    The new instance will still be closed/rolled over normally at end of day.
+    """
+    from .snapshotService import upsertResultSnapshot
+    from .models import PollInstanceOption, PollTemplate, PollPlan, PollPlanOption
+    from .rollover import chooseInstanceOptions
+    
+    # Get the current instance
+    currentInstance = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.id == instanceId)
+    )).scalar_one_or_none()
+    
+    if not currentInstance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    if currentInstance.status == "CLOSED":
+        raise HTTPException(status_code=409, detail="Cannot replace a closed instance")
+    
+    # Get the template to rebuild from
+    template = (await db.execute(
+        select(PollTemplate)
+        .where(PollTemplate.id == currentInstance.templateId)
+        .options(selectinload(PollTemplate.defaultOptions))
+    )).scalar_one_or_none()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Get plan for this date (if exists)
+    plan = (await db.execute(
+        select(PollPlan)
+        .where(PollPlan.templateId == currentInstance.templateId)
+        .where(PollPlan.pollDate == currentInstance.pollDate)
+        .options(selectinload(PollPlan.options))
+    )).scalar_one_or_none()
+    
+    # Close and snapshot the current instance
+    snapshotOk = await upsertResultSnapshot(db, instanceId)
+    currentInstance.status = "CLOSED"
+    await db.flush()
+    
+    # Store instance properties before deletion
+    templateId = currentInstance.templateId
+    categoryId = currentInstance.categoryId
+    pollDate = currentInstance.pollDate
+    title = currentInstance.title
+    pollType = currentInstance.pollType
+    maxRank = currentInstance.maxRank
+    audience = currentInstance.audience
+    
+    # Determine question from plan override or template
+    question = plan.questionOverride if (plan and plan.questionOverride) else template.question
+    
+    # Determine options from plan or template
+    optionData = chooseInstanceOptions(template, plan)
+    
+    # Delete the current instance (removes unique constraint block)
+    await db.delete(currentInstance)
+    await db.flush()
+    
+    # Create new instance with template/plan settings
+    newInstanceId = newId()
+    newInstance = PollInstance(
+        id=newInstanceId,
+        templateId=templateId,
+        categoryId=categoryId,
+        pollDate=pollDate,
+        title=title,
+        question=question,
+        pollType=pollType,
+        maxRank=maxRank,
+        audience=audience,
+        status="OPEN",
+    )
+    db.add(newInstance)
+    await db.flush()
+    
+    # Create options
+    for opt in optionData:
+        db.add(PollInstanceOption(
+            id=newId(),
+            instanceId=newInstanceId,
+            label=opt["label"],
+            sortOrder=opt["sortOrder"],
+        ))
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="instance_replaced",
+        entityType="instance",
+        entityId=instanceId,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={
+            "oldInstanceId": instanceId,
+            "newInstanceId": newInstanceId,
+            "snapshotCreated": snapshotOk,
+            "pollDate": str(pollDate),
+            "usedPlan": plan is not None,
+            "planOverrides": {
+                "question": plan.questionOverride is not None,
+                "options": bool(plan and plan.options)
+            } if plan else None
+        }
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "oldInstanceId": instanceId,
+        "newInstanceId": newInstanceId,
+        "snapshotCreated": snapshotOk,
+        "pollDate": str(pollDate),
+        "templateId": templateId,
+        "usedPlan": plan is not None,
+    }

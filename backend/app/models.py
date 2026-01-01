@@ -344,3 +344,7 @@ class VoteRanking(Base):
     )
 
     ballot: Mapped["VoteBallot"] = relationship(back_populates="rankings")
+
+
+# Import AdminAuditLog to register it with SQLAlchemy
+from .auditLog import AdminAuditLog  # noqa: E402, F401

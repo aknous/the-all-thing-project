@@ -16,14 +16,15 @@ from .db import getDb
 from .schemas import VoteInput
 from .net import getClientIp
 from .redisClient import redisClient
-from .abuse import rateLimit, hasVoted, markVoted, setIdempotency
+from .abuse import rateLimit, hasVoted, markVoted, hasVotedByIp, markVotedByIp, setIdempotency
 from .hashUtil import hashString
 from .resultsService import buildResults
 from .pollsService import buildPollsForDate
 from .settings import settings
 from . import voterToken
+from .logger import logVote, logRateLimit, logSecurity
 
-from .models import PollInstance, VoteBallot, VoteRanking, PollResultSnapshot
+from .models import PollInstance, PollTemplate, VoteBallot, VoteRanking, PollResultSnapshot
 
 
 router = APIRouter(prefix="/polls", tags=["public"])
@@ -54,17 +55,21 @@ def getVoterIdentityOrSetCookie(request: Request, response: Response) -> str:
     if not rawToken:
         signedNew = voterToken.mintToken()
         rawToken = voterToken.verifyToken(signedNew)
-        # host-only cookie is simplest; if you want shared across subdomains, set domain to ".theallthingproject.com"
-        response.set_cookie(
-            key=voterToken.cookieName,
-            value=signedNew,
-            httponly=True,
-            secure=settings.cookieSecure,
-            samesite="lax",
-            path="/",
-            # domain=".theallthingproject.com",  # enable if you want cookie shared to subdomains
-            max_age=60 * 60 * 24 * 365,
-        )
+        # Build cookie params
+        cookie_params = {
+            "key": voterToken.cookieName,
+            "value": signedNew,
+            "httponly": True,
+            "secure": settings.cookieSecure,
+            "samesite": "lax",
+            "path": "/",
+            "max_age": 60 * 60 * 24 * 365,
+        }
+        # Only set domain if configured
+        if settings.cookieDomain:
+            cookie_params["domain"] = settings.cookieDomain
+        
+        response.set_cookie(**cookie_params)
 
     if not rawToken:
         raise HTTPException(status_code=500, detail="Unable to establish voter identity")
@@ -118,14 +123,14 @@ async def submitVote(
 
     countryCode, regionCode = getCoarseGeo(request)
 
-    # 2) rate limiting (per poll + ip)
-    # Tune these later; MVP defaults
+    # 2) rate limiting (1 vote per IP per poll per day)
     allowed = await rateLimit(
         key=f"vote:{pollId}:{ipHash}",
-        limit=10,
-        windowSeconds=60,
+        limit=1,
+        windowSeconds=60 * 60 * 24,  # 24 hours
     )
     if not allowed:
+        logRateLimit("vote", ipHash, f"/polls/{pollId}/vote")
         raise HTTPException(status_code=429, detail="Too many attempts")
 
     # 3) idempotency (optional but recommended)
@@ -135,9 +140,14 @@ async def submitVote(
             # Same request already processed very recently
             return {"ok": True, "deduped": True}
 
-    # 4) fast-path already voted
+    # 4) fast-path already voted (check both cookie and IP)
     if await hasVoted(pollId, voterHash):
+        logVote(pollId, voterHash, ipHash, False, "duplicate_voter_hash")
         raise HTTPException(status_code=409, detail="Already voted")
+    
+    if await hasVotedByIp(pollId, ipHash):
+        logVote(pollId, voterHash, ipHash, False, "duplicate_ip")
+        raise HTTPException(status_code=409, detail="Already voted from this network")
 
     # 5) load poll instance + options
     instance = (await db.execute(
@@ -206,17 +216,24 @@ async def submitVote(
 
     try:
         await db.commit()
+        logVote(pollId, voterHash, ipHash, True)
     except IntegrityError:
         # Most likely: unique constraint instanceId + voterTokenHash (already voted)
         await db.rollback()
+        logVote(pollId, voterHash, ipHash, False, "integrity_error")
         raise HTTPException(status_code=409, detail="Already voted")
 
-    # 8) mark voted in Redis (TTL: until end of day or 24h MVP)
-    # MVP: 24h TTL is acceptable; later compute until instance pollDate end (America/New_York)
+    # 8) mark voted in Redis (both by identity and IP, TTL: 24h)
+    ttl = 60 * 60 * 24
     await markVoted(
         pollId=instance.id,
         identityHash=voterHash,
-        ttlSeconds=60 * 60 * 24,
+        ttlSeconds=ttl,
+    )
+    await markVotedByIp(
+        pollId=instance.id,
+        ipHash=ipHash,
+        ttlSeconds=ttl,
     )
 
     # 9) bust results cache
@@ -259,6 +276,116 @@ async def getResults(
     data = await buildResults(db, pollId)
     await redisClient.set(cacheKey, json.dumps(data), ex=10)
     return {"cached": False, "data": data}
+
+
+@router.get("/templates/{templateId}/history")
+async def getTemplateHistory(
+    templateId: str,
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(getDb),
+):
+    """Get historical poll results for a template (last N closed polls)"""
+    
+    # Verify template exists
+    template = (await db.execute(
+        select(PollTemplate).where(PollTemplate.id == templateId)
+    )).scalar_one_or_none()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Get closed instances with snapshots, ordered by date descending
+    instances = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.templateId == templateId)
+        .where(PollInstance.status == "CLOSED")
+        .order_by(PollInstance.pollDate.desc())
+        .limit(limit)
+    )).scalars().all()
+    
+    results = []
+    for instance in instances:
+        # Get snapshot for this instance
+        snapshot = (await db.execute(
+            select(PollResultSnapshot)
+            .where(PollResultSnapshot.instanceId == instance.id)
+        )).scalar_one_or_none()
+        
+        if snapshot and snapshot.resultsJson:
+            result_data = snapshot.resultsJson
+            poll_type = result_data.get('pollType')
+            
+            # Extract winner and vote breakdown
+            winner = None
+            options_breakdown = []
+            total_votes = result_data.get('totalVotes', 0) or result_data.get('totalBallots', 0)
+            
+            if poll_type == 'SINGLE':
+                # For single choice polls, get results from results array
+                vote_results = result_data.get('results', [])
+                for opt in vote_results:
+                    count = opt.get('count', 0)
+                    percentage = (count / total_votes * 100) if total_votes > 0 else 0
+                    options_breakdown.append({
+                        'optionId': opt.get('optionId'),
+                        'label': opt.get('label'),
+                        'voteCount': count,
+                        'percentage': round(percentage, 1),
+                    })
+                
+                # Winner is first option (already sorted by vote count)
+                if options_breakdown and options_breakdown[0]['voteCount'] > 0:
+                    winner = options_breakdown[0]
+                    
+            elif poll_type == 'RANKED':
+                # For ranked choice, extract from rounds data
+                rounds = result_data.get('rounds', [])
+                winner_option_id = result_data.get('winnerOptionId')
+                rank_breakdown = result_data.get('rankBreakdown', {})
+                
+                # Get the final round to show vote distribution
+                if rounds:
+                    final_round = rounds[-1]
+                    totals = final_round.get('totals', {})
+                    
+                    # Get option labels from options array
+                    option_labels = {opt['optionId']: opt['label'] for opt in result_data.get('options', [])}
+                    
+                    for option_id, count in totals.items():
+                        percentage = (count / total_votes * 100) if total_votes > 0 else 0
+                        
+                        # Get rank breakdown for this option
+                        option_rank_breakdown = rank_breakdown.get(option_id, {})
+                        
+                        options_breakdown.append({
+                            'optionId': option_id,
+                            'label': option_labels.get(option_id, ''),
+                            'voteCount': count,
+                            'percentage': round(percentage, 1),
+                            'isWinner': option_id == winner_option_id,
+                            'rankBreakdown': option_rank_breakdown,
+                        })
+                    
+                    # Sort by vote count descending
+                    options_breakdown.sort(key=lambda x: x['voteCount'], reverse=True)
+                    
+                    # Set winner
+                    if winner_option_id:
+                        winner_data = next((opt for opt in options_breakdown if opt['optionId'] == winner_option_id), None)
+                        if winner_data:
+                            winner = winner_data
+            
+            results.append({
+                'pollId': instance.id,
+                'pollDate': str(instance.pollDate),
+                'title': instance.title,
+                'pollType': poll_type,
+                'winner': winner,
+                'options': options_breakdown,
+                'totalVotes': total_votes,
+            })
+    
+    return {"data": results}
 
 
 

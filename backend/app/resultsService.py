@@ -115,10 +115,23 @@ async def buildRankedResults(
 
     ballots = list(ballotsByBallotId.values())
 
+    # Calculate rank breakdown (how many times each option was ranked 1st, 2nd, 3rd, etc.)
+    # Initialize all options with 0 counts for all possible ranks (1 through len(optionIds))
+    rankBreakdown: dict[str, dict[int, int]] = {
+        oid: {rank: 0 for rank in range(1, len(optionIds) + 1)} 
+        for oid in optionIds
+    }
+    
+    for ballot in ballots:
+        for position, optionId in enumerate(ballot, start=1):
+            if optionId in rankBreakdown:
+                rankBreakdown[optionId][position] += 1
+
     tally = irvTally(ballots=ballots, optionIds=optionIds)
 
     return {
         "totalBallots": len(ballots),
         "winnerOptionId": tally.get("winnerOptionId"),
         "rounds": tally.get("rounds", []),
+        "rankBreakdown": rankBreakdown,
     }
