@@ -11,11 +11,12 @@ from .logger import logError, logStructured
 
 
 async def closePollsForDate(db: AsyncSession, pollDate: date) -> int:
+    """Close polls whose closeDate is on or before the given date"""
     try:
         async with db.begin():
             stmt = (
                 update(PollInstance)
-                .where(PollInstance.pollDate == pollDate)
+                .where(PollInstance.closeDate <= pollDate)
                 .where(PollInstance.status == "OPEN")
                 .values(status="CLOSED")
             )
@@ -31,11 +32,12 @@ async def closePollsForDate(db: AsyncSession, pollDate: date) -> int:
 
 
 async def closePollsBeforeDate(db: AsyncSession, cutoffDate: date) -> int:
+    """Close polls whose closeDate is before the cutoff date"""
     try:
         async with db.begin():
             stmt = (
                 update(PollInstance)
-                .where(PollInstance.pollDate < cutoffDate)
+                .where(PollInstance.closeDate < cutoffDate)
                 .where(PollInstance.status == "OPEN")
                 .values(status="CLOSED")
             )
@@ -51,11 +53,12 @@ async def closePollsBeforeDate(db: AsyncSession, cutoffDate: date) -> int:
 
 
 async def closeAndSnapshotForDate(db: AsyncSession, pollDate: date) -> dict:
+    """Close polls whose closeDate is on or before the given date, creating snapshots"""
     try:
         async with db.begin():
             instances = (await db.execute(
                 select(PollInstance)
-                .where(PollInstance.pollDate == pollDate)
+                .where(PollInstance.closeDate <= pollDate)
                 .where(PollInstance.status == "OPEN")
             )).scalars().all()
 
@@ -67,7 +70,7 @@ async def closeAndSnapshotForDate(db: AsyncSession, pollDate: date) -> dict:
 
             result = await db.execute(
                 update(PollInstance)
-                .where(PollInstance.pollDate == pollDate)
+                .where(PollInstance.closeDate <= pollDate)
                 .where(PollInstance.status == "OPEN")
                 .values(status="CLOSED")
             )

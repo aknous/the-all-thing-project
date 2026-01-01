@@ -22,6 +22,35 @@ export default function PollCard({ poll }: PollCardProps) {
   const [success, setSuccess] = useState(false);
   const [previousVote, setPreviousVote] = useState<string[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
+
+  // Calculate time remaining
+  useEffect(() => {
+    const updateTimeRemaining = () => {
+      const closeDate = new Date(poll.closeDate + 'T23:59:59');
+      const now = new Date();
+      const diffMs = closeDate.getTime() - now.getTime();
+      
+      if (diffMs <= 0) {
+        setTimeRemaining('Closed');
+        return;
+      }
+      
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffHours < 24) {
+        setTimeRemaining(`${diffHours}h remaining`);
+      } else {
+        setTimeRemaining(`${diffDays}d remaining`);
+      }
+    };
+    
+    updateTimeRemaining();
+    const interval = setInterval(updateTimeRemaining, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [poll.closeDate]);
 
   // Check localStorage for previous vote on mount
   useEffect(() => {
@@ -104,9 +133,16 @@ export default function PollCard({ poll }: PollCardProps) {
       <>
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 border border-zinc-200 dark:border-zinc-800">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 flex-1">
-              {poll.title}
-            </h3>
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+                  {poll.title}
+                </h3>
+                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  {timeRemaining}
+                </span>
+              </div>
+            </div>
             <button
               onClick={() => setShowHistory(true)}
               className="ml-3 p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
@@ -137,7 +173,7 @@ export default function PollCard({ poll }: PollCardProps) {
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 mb-4">
             <div className="flex items-start gap-3">
               <svg
-                className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5"
+                className="w-6 h-6 text-green-500 shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -190,9 +226,16 @@ export default function PollCard({ poll }: PollCardProps) {
     <>
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 border border-zinc-200 dark:border-zinc-800">
         <div className="flex items-start justify-between mb-2">
-          <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 flex-1">
-            {poll.title}
-          </h3>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {poll.title}
+              </h3>
+              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                {timeRemaining}
+              </span>
+            </div>
+          </div>
           <button
             onClick={() => setShowHistory(true)}
             className="ml-3 p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"

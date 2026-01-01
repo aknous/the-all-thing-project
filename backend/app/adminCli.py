@@ -41,8 +41,13 @@ Commands:
   
   rollover                Run rollover for a specific date
   close-date              Close all polls for a specific date
+  close-all-polls         Close ALL open polls (creates snapshots)
+  recreate-date           Delete and recreate all polls for a specific date
   close-instance          Close and snapshot a specific poll instance
   replace-instance        Replace a poll instance with fresh one from template+plan
+  update-instance-category Update an instance's category
+  update-template-category Update a template's category
+  clean-duplicates        Remove duplicate instances (keeps most recent OPEN per template/date)
   
   find-missing-snapshots  Find closed polls without snapshots
   create-missing-snapshots Create snapshots for closed polls missing them
@@ -56,8 +61,10 @@ Options:
   --limit N               Limit results (default: 20)
   --date YYYY-MM-DD      Filter by date
   --category-id ID       Filter by category ID
+  --parent-category-id ID Parent category ID (for creating sub-categories)
   --status STATUS        Filter by status (OPEN, CLOSED)
   --instance-id ID       Instance ID for instance operations
+  --template-id ID       Template ID for template operations
   --count N              Number of test votes to create (default: 1)
   --rankings OPTIONIDS   Comma-separated option IDs in rank order (for test-vote)
   --random               Randomize vote selections for each test vote
@@ -336,19 +343,32 @@ async def showVoteStats():
             print()
 
 
-async def createCategory(name: str, key: str, sortOrder: int = 0):
+async def createCategory(name: str, key: str, sortOrder: int = 0, parentCategoryId: Optional[str] = None):
     """Create a new poll category"""
     async with sessionFactory() as db:
         async with db.begin():
+            # If parentCategoryId provided, verify it exists
+            if parentCategoryId:
+                parent = (await db.execute(
+                    select(PollCategory).where(PollCategory.id == parentCategoryId)
+                )).scalar_one_or_none()
+                if not parent:
+                    print(f"Error: Parent category not found: {parentCategoryId}")
+                    sys.exit(1)
+            
             category = PollCategory(
                 id=str(uuid.uuid4()),
                 name=name,
                 key=key,
-                sortOrder=sortOrder
+                sortOrder=sortOrder,
+                parentCategoryId=parentCategoryId
             )
             db.add(category)
         
-        print(f"✓ Created category: {name} (ID: {category.id}, Key: {key}, Sort: {sortOrder})")
+        if parentCategoryId:
+            print(f"✓ Created sub-category: {name} (ID: {category.id}, Key: {key}, Parent: {parentCategoryId})")
+        else:
+            print(f"✓ Created category: {name} (ID: {category.id}, Key: {key}, Sort: {sortOrder})")
 
 
 async def runRolloverForDate(pollDate: date):
@@ -359,6 +379,42 @@ async def runRolloverForDate(pollDate: date):
         createdCount = await ensureInstancesForDate(db, pollDate)
     
     print(f"✓ Rollover complete for {pollDate}: created {createdCount} instance(s)")
+
+
+async def recreateDate(pollDate: date):
+    """Delete all instances for a date and recreate them fresh"""
+    from .rollover import ensureInstancesForDate
+    
+    async with sessionFactory() as db:
+        # Get all instances for this date
+        instances = (await db.execute(
+            select(PollInstance).where(PollInstance.pollDate == pollDate)
+        )).scalars().all()
+        
+        if not instances:
+            print(f"No instances found for {pollDate}")
+        else:
+            print(f"\n{'='*100}")
+            print(f"Deleting {len(instances)} instance(s) for {pollDate}")
+            print(f"{'='*100}\n")
+            
+            for inst in instances:
+                print(f"Deleting: {inst.title} (ID: {inst.id}, Status: {inst.status})")
+                await db.delete(inst)
+            
+            await db.commit()
+            print(f"\n✓ Deleted {len(instances)} instance(s)\n")
+        
+        # Recreate instances
+        print(f"{'='*100}")
+        print(f"Creating fresh instances for {pollDate}")
+        print(f"{'='*100}\n")
+        
+        createdCount = await ensureInstancesForDate(db, pollDate)
+        
+        print(f"\n{'='*100}")
+        print(f"✓ Recreated {createdCount} instance(s) for {pollDate}")
+        print(f"{'='*100}")
 
 
 async def closePollsByDate(pollDate: date):
@@ -401,6 +457,53 @@ async def closeInstance(instanceId: str):
         print(f"  Template: {instance.templateId}")
         print(f"  Date: {instance.pollDate}")
         print(f"  Snapshot created: {snapshotOk}")
+
+
+async def closeAllPolls():
+    """Close all open poll instances and create snapshots"""
+    from .snapshotService import upsertResultSnapshot
+    
+    async with sessionFactory() as db:
+        # Get all open instances
+        openInstances = (await db.execute(
+            select(PollInstance)
+            .where(PollInstance.status == "OPEN")
+            .order_by(PollInstance.pollDate.desc())
+        )).scalars().all()
+        
+        if not openInstances:
+            print("No open polls found.")
+            return
+        
+        print(f"\n{'='*100}")
+        print(f"Found {len(openInstances)} open poll(s) to close")
+        print(f"{'='*100}\n")
+        
+        closedCount = 0
+        snapshotCount = 0
+        
+        for instance in openInstances:
+            print(f"Closing: {instance.pollDate} - {instance.title} (ID: {instance.id})")
+            
+            # Create snapshot
+            snapshotOk = await upsertResultSnapshot(db, instance.id)
+            if snapshotOk:
+                snapshotCount += 1
+                print(f"  ✓ Snapshot created")
+            else:
+                print(f"  ✗ Snapshot failed")
+            
+            # Close the instance
+            instance.status = "CLOSED"
+            closedCount += 1
+            print(f"  ✓ Poll closed")
+            print()
+        
+        await db.commit()
+        
+        print(f"\n{'='*100}")
+        print(f"✓ Closed {closedCount} poll(s), created {snapshotCount} snapshot(s)")
+        print(f"{'='*100}")
 
 
 async def replaceInstance(instanceId: str):
@@ -499,6 +602,73 @@ async def replaceInstance(instanceId: str):
         print(f"  New instance: {newInstanceId} (OPEN)")
         print(f"  Date: {pollDate}")
         print(f"  Used plan: {plan is not None}")
+
+
+async def updateInstanceCategory(instanceId: str, categoryId: str):
+    """Update an instance's category"""
+    async with sessionFactory() as db:
+        # Get instance
+        instance = (await db.execute(
+            select(PollInstance).where(PollInstance.id == instanceId)
+        )).scalar_one_or_none()
+        
+        if not instance:
+            print(f"Error: Instance not found: {instanceId}")
+            sys.exit(1)
+        
+        # Validate category exists
+        category = (await db.execute(
+            select(PollCategory).where(PollCategory.id == categoryId)
+        )).scalar_one_or_none()
+        
+        if not category:
+            print(f"Error: Category not found: {categoryId}")
+            sys.exit(1)
+        
+        oldCategoryId = instance.categoryId
+        instance.categoryId = categoryId
+        
+        await db.commit()
+        
+        print(f"✓ Updated instance category")
+        print(f"  Instance: {instanceId}")
+        print(f"  Title: {instance.title}")
+        print(f"  Date: {instance.pollDate}")
+        print(f"  Old Category: {oldCategoryId}")
+        print(f"  New Category: {categoryId} ({category.name})")
+
+
+async def updateTemplateCategory(templateId: str, categoryId: str):
+    """Update a template's category"""
+    async with sessionFactory() as db:
+        # Get template
+        template = (await db.execute(
+            select(PollTemplate).where(PollTemplate.id == templateId)
+        )).scalar_one_or_none()
+        
+        if not template:
+            print(f"Error: Template not found: {templateId}")
+            sys.exit(1)
+        
+        # Validate category exists
+        category = (await db.execute(
+            select(PollCategory).where(PollCategory.id == categoryId)
+        )).scalar_one_or_none()
+        
+        if not category:
+            print(f"Error: Category not found: {categoryId}")
+            sys.exit(1)
+        
+        oldCategoryId = template.categoryId
+        template.categoryId = categoryId
+        
+        await db.commit()
+        
+        print(f"✓ Updated template category")
+        print(f"  Template: {templateId}")
+        print(f"  Title: {template.title}")
+        print(f"  Old Category: {oldCategoryId}")
+        print(f"  New Category: {categoryId} ({category.name})")
 
 
 async def findMissingSnapshots():
@@ -765,6 +935,9 @@ def parseArgs() -> tuple[str, dict]:
         elif arg == '--category-id':
             options['categoryId'] = sys.argv[i + 1]
             i += 2
+        elif arg == '--parent-category-id':
+            options['parentCategoryId'] = sys.argv[i + 1]
+            i += 2
         elif arg == '--status':
             options['status'] = sys.argv[i + 1]
             i += 2
@@ -776,6 +949,9 @@ def parseArgs() -> tuple[str, dict]:
             i += 2
         elif arg == '--instance-id':
             options['instanceId'] = sys.argv[i + 1]
+            i += 2
+        elif arg == '--template-id':
+            options['templateId'] = sys.argv[i + 1]
             i += 2
         elif arg == '--count':
             options['count'] = int(sys.argv[i + 1])
@@ -797,6 +973,59 @@ def parseArgs() -> tuple[str, dict]:
             i += 1
     
     return command, options
+
+
+async def cleanDuplicateInstances():
+    """Remove duplicate poll instances, keeping only the most recent OPEN instance per template/date"""
+    async with sessionFactory() as db:
+        # Find all instances grouped by (templateId, pollDate)
+        result = await db.execute(
+            select(PollInstance)
+            .order_by(PollInstance.templateId, PollInstance.pollDate, desc(PollInstance.status))
+        )
+        instances = result.scalars().all()
+        
+        # Group by (templateId, pollDate)
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for instance in instances:
+            key = (instance.templateId, instance.pollDate)
+            groups[key].append(instance)
+        
+        # Find duplicates
+        duplicates = {k: v for k, v in groups.items() if len(v) > 1}
+        
+        if not duplicates:
+            print("No duplicate instances found.")
+            return
+        
+        print(f"Found {len(duplicates)} duplicate groups:\n")
+        
+        deleted_count = 0
+        for (templateId, pollDate), instances_list in duplicates.items():
+            print(f"Template: {templateId}, Date: {pollDate}")
+            print(f"  Found {len(instances_list)} instances:")
+            
+            # Sort: OPEN first, then by creation (assuming earlier IDs = earlier creation for UUIDs)
+            instances_list.sort(key=lambda x: (0 if x.status == "OPEN" else 1, x.id), reverse=True)
+            
+            # Keep the first one (most recent OPEN if any, otherwise most recent CLOSED)
+            keeper = instances_list[0]
+            to_delete = instances_list[1:]
+            
+            for inst in instances_list:
+                status_marker = "✓ KEEP" if inst.id == keeper.id else "✗ DELETE"
+                print(f"    {status_marker} - {inst.id} ({inst.status}) - {inst.title}")
+            
+            # Delete the duplicates
+            for inst in to_delete:
+                await db.delete(inst)
+                deleted_count += 1
+            
+            print()
+        
+        await db.commit()
+        print(f"✓ Deleted {deleted_count} duplicate instances")
 
 
 async def main():
@@ -837,11 +1066,20 @@ async def main():
                 sys.exit(1)
             await runRolloverForDate(options['pollDate'])
         
+        elif command == 'recreate-date':
+            if 'pollDate' not in options:
+                print("Error: --date YYYY-MM-DD is required")
+                sys.exit(1)
+            await recreateDate(options['pollDate'])
+        
         elif command == 'close-date':
             if 'pollDate' not in options:
                 print("Error: --date YYYY-MM-DD is required")
                 sys.exit(1)
             await closePollsByDate(options['pollDate'])
+        
+        elif command == 'close-all-polls':
+            await closeAllPolls()
         
         elif command == 'close-instance':
             if 'instanceId' not in options:
@@ -854,6 +1092,18 @@ async def main():
                 print("Error: --instance-id is required")
                 sys.exit(1)
             await replaceInstance(options['instanceId'])
+        
+        elif command == 'update-instance-category':
+            if 'instanceId' not in options or 'categoryId' not in options:
+                print("Error: --instance-id and --category-id are required")
+                sys.exit(1)
+            await updateInstanceCategory(options['instanceId'], options['categoryId'])
+        
+        elif command == 'update-template-category':
+            if 'templateId' not in options or 'categoryId' not in options:
+                print("Error: --template-id and --category-id are required")
+                sys.exit(1)
+            await updateTemplateCategory(options['templateId'], options['categoryId'])
         
         elif command == 'find-missing-snapshots':
             await findMissingSnapshots()
@@ -878,6 +1128,9 @@ async def main():
         elif command == 'votes':
             await showVoteStats()
         
+        elif command == 'clean-duplicates':
+            await cleanDuplicateInstances()
+        
         elif command == 'create-category':
             if 'name' not in options or 'key' not in options:
                 print("Error: --name and --key are required")
@@ -885,7 +1138,8 @@ async def main():
             await createCategory(
                 options['name'],
                 options['key'],
-                options.get('sortOrder', 0)
+                options.get('sortOrder', 0),
+                options.get('parentCategoryId')
             )
         
         else:

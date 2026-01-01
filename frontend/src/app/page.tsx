@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getTodayPolls } from '@/app/lib/api';
 import { PollCategory } from '@/app/lib/types';
-import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import PollList from '@/components/PollList';
 
 export default function Home() {
@@ -45,46 +45,46 @@ export default function Home() {
   }
 
   // Filter categories based on active selection
+  // If a category is selected, find it and show it with its subcategories
   const filteredCategories = activeCategory
-    ? categories.filter(cat => cat.categoryId === activeCategory)
+    ? (() => {
+        // Helper to recursively find a category
+        const findCategory = (cats: PollCategory[], targetId: string): PollCategory | null => {
+          for (const cat of cats) {
+            if (cat.categoryId === targetId) return cat;
+            if (cat.subCategories) {
+              const found = findCategory(cat.subCategories, targetId);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        const found = findCategory(categories, activeCategory);
+        return found ? [found] : [];
+      })()
     : categories;
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Sidebar */}
-      <Sidebar
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      {/* Header */}
+      <Header
         categories={categories}
         activeCategory={activeCategory}
         onSelectCategory={setActiveCategory}
       />
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <header className="mb-8">
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              Todays Polls
-            </h1>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {filteredCategories.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-zinc-600 dark:text-zinc-400">
+              No polls available.
             </p>
-          </header>
-
-          {filteredCategories.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-zinc-600 dark:text-zinc-400">
-                No polls available.
-              </p>
-            </div>
-          ) : (
-            <PollList categories={filteredCategories} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <PollList categories={filteredCategories} />
+        )}
       </main>
     </div>
   );

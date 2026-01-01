@@ -40,9 +40,32 @@ class PollCategory(Base):
     key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     sortOrder: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    
+    # Self-referential relationship for sub-categories
+    parentCategoryId: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("pollCategories.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
     templates: Mapped[List["PollTemplate"]] = relationship(
         back_populates="category",
+        cascade="all, delete-orphan",
+    )
+    
+    # Relationship to parent and children categories
+    parentCategory: Mapped[Optional["PollCategory"]] = relationship(
+        "PollCategory",
+        remote_side=[id],
+        back_populates="subCategories",
+        foreign_keys=[parentCategoryId],
+    )
+    
+    subCategories: Mapped[List["PollCategory"]] = relationship(
+        "PollCategory",
+        back_populates="parentCategory",
+        foreign_keys=[parentCategoryId],
         cascade="all, delete-orphan",
     )
 
@@ -74,6 +97,7 @@ class PollTemplate(Base):
     pollType: Mapped[str] = mapped_column(String(16), nullable=False)   # "SINGLE" | "RANKED"
     maxRank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     audience: Mapped[str] = mapped_column(String(16), nullable=False, default="PUBLIC")
+    durationDays: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # How many days poll stays open
 
     isActive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
@@ -198,6 +222,7 @@ class PollInstance(Base):
     )
 
     pollDate: Mapped[date] = mapped_column(Date, nullable=False)
+    closeDate: Mapped[date] = mapped_column(Date, nullable=False)  # Date when poll closes
 
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     question: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)

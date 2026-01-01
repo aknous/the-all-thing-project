@@ -41,10 +41,13 @@ class CategoryCreateInput(BaseModel):
     key: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9\-]+$")
     name: str = Field(min_length=2, max_length=128)
     sortOrder: int = 0
+    parentCategoryId: str | None = None
 
 class CategoryUpdateInput(BaseModel):
+    key: str | None = Field(default=None, min_length=2, max_length=64, pattern=r"^[a-z0-9\-]+$")
     name: str | None = Field(default=None, min_length=2, max_length=128)
     sortOrder: int | None = None
+    parentCategoryId: str | None = None
 
 class OptionInput(BaseModel):
     label: str = Field(min_length=1, max_length=256)
@@ -62,18 +65,24 @@ class TemplateCreateInput(BaseModel):
     pollType: PollType
     maxRank: int | None = Field(default=None, ge=1)
     audience: Audience = "PUBLIC"
+    durationDays: int = Field(default=1, ge=1, le=365)  # How many days poll stays open
 
     options: list[OptionInput] = Field(min_length=2)
 
 class TemplateUpdateInput(BaseModel):
+    categoryId: str | None = None
     title: str | None = Field(default=None, min_length=2, max_length=256)
     question: str | None = Field(default=None, max_length=1000)
     pollType: PollType | None = None
     maxRank: int | None = Field(default=None, ge=1)
     audience: Audience | None = None
+    durationDays: int | None = Field(default=None, ge=1, le=365)
 
 class TemplateActiveInput(BaseModel):
     isActive: bool
+
+class InstanceUpdateInput(BaseModel):
+    categoryId: str | None = None
 
 class TemplateReplaceOptionsInput(BaseModel):
     options: list[OptionInput] = Field(min_length=2)
@@ -95,11 +104,22 @@ def newId() -> str:
     return str(uuid.uuid4())
 
 def serializeCategory(category: PollCategory) -> dict:
+    # Safely access subCategories with try/except to prevent lazy loading errors
+    subCategories = []
+    try:
+        if hasattr(category, 'subCategories') and category.subCategories is not None:
+            subCategories = [serializeCategory(sub) for sub in category.subCategories]
+    except:
+        # If lazy loading fails, just skip subcategories
+        pass
+    
     return {
         "id": category.id,
         "key": category.key,
         "name": category.name,
         "sortOrder": category.sortOrder,
+        "parentCategoryId": category.parentCategoryId,
+        "subCategories": subCategories,
     }
 
 def serializeTemplate(template: PollTemplate, includeOptions: bool = False) -> dict:
@@ -112,6 +132,7 @@ def serializeTemplate(template: PollTemplate, includeOptions: bool = False) -> d
         "pollType": template.pollType,
         "maxRank": template.maxRank,
         "audience": template.audience,
+        "durationDays": template.durationDays,
         "isActive": template.isActive,
     }
     if includeOptions:
@@ -152,6 +173,7 @@ async def createCategory(
         key=sanitizedKey,
         name=sanitizedName,
         sortOrder=payload.sortOrder,
+        parentCategoryId=payload.parentCategoryId,
     )
     db.add(category)
     
@@ -172,11 +194,83 @@ async def createCategory(
 
 @router.get("/categories")
 async def listCategories(db: AsyncSession = Depends(getDb)):
-    rows = (await db.execute(select(PollCategory).order_by(PollCategory.sortOrder, PollCategory.name))).scalars().all()
+    stmt = (
+        select(PollCategory)
+        .options(selectinload(PollCategory.subCategories))
+        .where(PollCategory.parentCategoryId.is_(None))  # Only top-level categories
+        .order_by(PollCategory.sortOrder, PollCategory.name)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
     return {"categories": [serializeCategory(c) for c in rows]}
 
+@router.get("/categories/{categoryId}")
+async def getCategory(categoryId: str, db: AsyncSession = Depends(getDb)):
+    category = (await db.execute(select(PollCategory).where(PollCategory.id == categoryId))).scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"category": serializeCategory(category)}
+
+@router.put("/categories/{categoryId}")
+async def updateCategory(categoryId: str, payload: CategoryUpdateInput, db: AsyncSession = Depends(getDb), admin: AdminContext = Depends(requireAdmin)):
+    category = (await db.execute(select(PollCategory).where(PollCategory.id == categoryId))).scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    changes = {}
+    
+    if payload.key is not None:
+        sanitizedKey = sanitize.sanitizeKey(payload.key, maxLength=64)
+        # Check for duplicate key
+        existing = (await db.execute(
+            select(PollCategory)
+            .where(PollCategory.key == sanitizedKey)
+            .where(PollCategory.id != categoryId)
+        )).scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=409, detail="Category key already exists")
+        category.key = sanitizedKey
+        changes["key"] = sanitizedKey
+    
+    if payload.name is not None:
+        sanitizedName = sanitize.sanitizeName(payload.name, maxLength=128)
+        category.name = sanitizedName
+        changes["name"] = sanitizedName
+    
+    if payload.sortOrder is not None:
+        category.sortOrder = payload.sortOrder
+        changes["sortOrder"] = payload.sortOrder
+    
+    if "parentCategoryId" in payload.model_fields_set:
+        # Validate parent exists if provided
+        if payload.parentCategoryId is not None:
+            parent = (await db.execute(
+                select(PollCategory).where(PollCategory.id == payload.parentCategoryId)
+            )).scalar_one_or_none()
+            if not parent:
+                raise HTTPException(status_code=404, detail="Parent category not found")
+            # Prevent circular reference (setting parent to self or descendant)
+            if payload.parentCategoryId == categoryId:
+                raise HTTPException(status_code=422, detail="Cannot set category as its own parent")
+        category.parentCategoryId = payload.parentCategoryId
+        changes["parentCategoryId"] = payload.parentCategoryId
+
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="category_updated",
+        entityType="category",
+        entityId=category.id,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes=changes
+    )
+
+    await db.commit()
+    return {"ok": True, "category": serializeCategory(category)}
+
 @router.patch("/categories/{categoryId}")
-async def updateCategory(categoryId: str, payload: CategoryUpdateInput, db: AsyncSession = Depends(getDb)):
+async def patchCategory(categoryId: str, payload: CategoryUpdateInput, db: AsyncSession = Depends(getDb)):
     category = (await db.execute(select(PollCategory).where(PollCategory.id == categoryId))).scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -224,6 +318,7 @@ async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depend
         pollType=payload.pollType,
         maxRank=payload.maxRank,
         audience=payload.audience,
+        durationDays=payload.durationDays,
         isActive=True,
     )
     db.add(template)
@@ -278,6 +373,12 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 
+    if payload.categoryId is not None:
+        # Validate category exists
+        category = (await db.execute(select(PollCategory).where(PollCategory.id == payload.categoryId))).scalar_one_or_none()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        template.categoryId = payload.categoryId
     if payload.title is not None:
         template.title = sanitize.sanitizeTitle(payload.title, maxLength=256)
     if payload.question is not None:
@@ -288,6 +389,8 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
         template.maxRank = payload.maxRank
     if payload.audience is not None:
         template.audience = payload.audience
+    if payload.durationDays is not None:
+        template.durationDays = payload.durationDays
 
     if template.pollType == "RANKED" and template.maxRank is not None and template.maxRank < 2:
         raise HTTPException(status_code=422, detail="maxRank must be >= 2 for ranked polls")
@@ -432,6 +535,7 @@ async def listInstances(pollDate: date = Query(...), db: AsyncSession = Depends(
                 "id": i.id,
                 "templateId": i.templateId,
                 "pollDate": str(i.pollDate),
+                "title": i.title,
                 "question": i.question,
                 "pollType": i.pollType,
                 "maxRank": i.maxRank,
@@ -441,6 +545,37 @@ async def listInstances(pollDate: date = Query(...), db: AsyncSession = Depends(
             }
             for i in instances
         ],
+    }
+
+@router.get("/instances/{instanceId}")
+async def getInstance(instanceId: str, db: AsyncSession = Depends(getDb)):
+    instance = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.id == instanceId)
+        .options(selectinload(PollInstance.options))
+    )).scalar_one_or_none()
+    
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    return {
+        "instance": {
+            "id": instance.id,
+            "templateId": instance.templateId,
+            "categoryId": instance.categoryId,
+            "pollDate": str(instance.pollDate),
+            "closeDate": str(instance.closeDate),
+            "title": instance.title,
+            "question": instance.question,
+            "pollType": instance.pollType,
+            "maxRank": instance.maxRank,
+            "audience": instance.audience,
+            "status": instance.status,
+            "options": [
+                {"id": o.id, "label": o.label, "sortOrder": o.sortOrder}
+                for o in sorted(instance.options, key=lambda x: x.sortOrder)
+            ],
+        }
     }
 
 @router.post("/rollover")
@@ -510,6 +645,46 @@ async def closeInstance(
         "pollDate": str(instance.pollDate),
         "templateId": instance.templateId,
     }
+
+@router.patch("/instances/{instanceId}")
+async def updateInstance(
+    instanceId: str,
+    payload: InstanceUpdateInput,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Update an instance's category"""
+    instance = (await db.execute(
+        select(PollInstance).where(PollInstance.id == instanceId)
+    )).scalar_one_or_none()
+    
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    if payload.categoryId is not None:
+        # Validate category exists
+        category = (await db.execute(
+            select(PollCategory).where(PollCategory.id == payload.categoryId)
+        )).scalar_one_or_none()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
+        oldCategoryId = instance.categoryId
+        instance.categoryId = payload.categoryId
+        
+        await logAdminAction(
+            db=db,
+            action="instance_category_updated",
+            entityType="instance",
+            entityId=instanceId,
+            adminKeyHash=admin.adminKeyHash,
+            ipAddress=admin.ipAddress,
+            userAgent=admin.userAgent,
+            changes={"categoryId": {"old": oldCategoryId, "new": payload.categoryId}}
+        )
+    
+    await db.commit()
+    return {"ok": True, "instanceId": instanceId, "categoryId": instance.categoryId}
 
 @router.post("/instances/{instanceId}/replace")
 async def replaceInstance(
@@ -644,4 +819,258 @@ async def replaceInstance(
         "pollDate": str(pollDate),
         "templateId": templateId,
         "usedPlan": plan is not None,
+    }
+
+
+@router.post("/snapshots/create-missing")
+async def createMissingSnapshots(
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Create snapshots for all closed polls that are missing them"""
+    from .snapshotService import upsertResultSnapshot
+    from .models import PollResultSnapshot
+    
+    # Get all closed instances
+    closedInstances = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.status == "CLOSED")
+        .order_by(PollInstance.pollDate.desc())
+    )).scalars().all()
+    
+    # Find missing snapshots
+    missing = []
+    for inst in closedInstances:
+        snap = (await db.execute(
+            select(PollResultSnapshot)
+            .where(PollResultSnapshot.instanceId == inst.id)
+        )).scalar_one_or_none()
+        
+        if not snap:
+            missing.append(inst)
+    
+    if not missing:
+        return {
+            "ok": True,
+            "message": "All closed polls already have snapshots",
+            "createdCount": 0,
+        }
+    
+    # Create missing snapshots
+    createdCount = 0
+    for inst in missing:
+        success = await upsertResultSnapshot(db, inst.id)
+        if success:
+            createdCount += 1
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="snapshots_created",
+        entityType="snapshot",
+        entityId=None,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={"createdCount": createdCount, "totalMissing": len(missing)}
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "createdCount": createdCount,
+        "totalMissing": len(missing),
+    }
+
+
+@router.post("/snapshots/regenerate")
+async def regenerateSnapshots(
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Regenerate snapshots for all closed polls (updates data structure)"""
+    from .snapshotService import upsertResultSnapshot
+    
+    # Get all closed instances
+    closedInstances = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.status == "CLOSED")
+        .order_by(PollInstance.pollDate.desc())
+    )).scalars().all()
+    
+    if not closedInstances:
+        return {
+            "ok": True,
+            "message": "No closed polls found",
+            "regeneratedCount": 0,
+        }
+    
+    # Regenerate all snapshots
+    regeneratedCount = 0
+    for inst in closedInstances:
+        success = await upsertResultSnapshot(db, inst.id)
+        if success:
+            regeneratedCount += 1
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="snapshots_regenerated",
+        entityType="snapshot",
+        entityId=None,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={"regeneratedCount": regeneratedCount, "totalClosed": len(closedInstances)}
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "regeneratedCount": regeneratedCount,
+        "totalClosed": len(closedInstances),
+    }
+
+
+@router.post("/snapshots/create-for-active")
+async def createSnapshotsForActive(
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Create/update snapshots for all active (OPEN) polls to capture current results"""
+    from .snapshotService import upsertResultSnapshot
+    
+    # Get all open instances
+    openInstances = (await db.execute(
+        select(PollInstance)
+        .where(PollInstance.status == "OPEN")
+        .order_by(PollInstance.pollDate.desc())
+    )).scalars().all()
+    
+    if not openInstances:
+        return {
+            "ok": True,
+            "message": "No active polls found",
+            "createdCount": 0,
+        }
+    
+    # Create/update snapshots for all active polls
+    createdCount = 0
+    for inst in openInstances:
+        success = await upsertResultSnapshot(db, inst.id)
+        if success:
+            createdCount += 1
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="snapshots_created_for_active",
+        entityType="snapshot",
+        entityId=None,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={"createdCount": createdCount, "totalActive": len(openInstances)}
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "createdCount": createdCount,
+        "totalActive": len(openInstances),
+    }
+
+
+@router.post("/instances/{instanceId}/snapshot")
+async def createInstanceSnapshot(
+    instanceId: str,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin),
+):
+    """Create/update snapshot for a specific poll instance (works for both OPEN and CLOSED)"""
+    from .snapshotService import upsertResultSnapshot
+    from .models import PollResultSnapshot
+    
+    # Get the instance
+    instance = (await db.execute(
+        select(PollInstance).where(PollInstance.id == instanceId)
+    )).scalar_one_or_none()
+    
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    # Create/update snapshot
+    success = await upsertResultSnapshot(db, instanceId)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create snapshot")
+    
+    # Get the snapshot
+    snapshot = (await db.execute(
+        select(PollResultSnapshot).where(PollResultSnapshot.instanceId == instanceId)
+    )).scalar_one_or_none()
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="instance_snapshot_created",
+        entityType="snapshot",
+        entityId=snapshot.id if snapshot else None,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={
+            "instanceId": instanceId,
+            "instanceStatus": instance.status,
+            "pollDate": str(instance.pollDate),
+        }
+    )
+    
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "instanceId": instanceId,
+        "snapshotId": snapshot.id if snapshot else None,
+        "snapshot": {
+            "id": snapshot.id,
+            "instanceId": snapshot.instanceId,
+            "totalVotes": snapshot.totalVotes,
+            "totalBallots": snapshot.totalBallots,
+            "winnerOptionId": snapshot.winnerOptionId,
+            "resultsJson": snapshot.resultsJson,
+            "createdAt": snapshot.createdAt.isoformat(),
+        } if snapshot else None,
+    }
+
+
+@router.get("/instances/{instanceId}/snapshot")
+async def getInstanceSnapshot(
+    instanceId: str,
+    db: AsyncSession = Depends(getDb),
+):
+    """Get snapshot for a specific poll instance"""
+    from .models import PollResultSnapshot
+    
+    snapshot = (await db.execute(
+        select(PollResultSnapshot).where(PollResultSnapshot.instanceId == instanceId)
+    )).scalar_one_or_none()
+    
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found for this instance")
+    
+    return {
+        "ok": True,
+        "snapshot": {
+            "id": snapshot.id,
+            "instanceId": snapshot.instanceId,
+            "totalVotes": snapshot.totalVotes,
+            "totalBallots": snapshot.totalBallots,
+            "winnerOptionId": snapshot.winnerOptionId,
+            "resultsJson": snapshot.resultsJson,
+            "createdAt": snapshot.createdAt.isoformat(),
+        },
     }

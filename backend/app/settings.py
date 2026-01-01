@@ -15,7 +15,13 @@ class Settings(BaseSettings):
     cookieSecure: bool = True
 
     # CORS settings (comma-separated list of allowed origins)
-    corsOrigins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # Default includes localhost for development
+    corsOrigins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://localhost:3000",
+        "https://localhost:5173",
+    ]
 
     @property
     def async_database_url(self) -> str:

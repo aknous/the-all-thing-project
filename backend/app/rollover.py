@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Tuple
 
 from sqlalchemy import select
@@ -66,7 +66,7 @@ async def ensureInstancesForDate(db: AsyncSession, pollDate: date) -> int:
 
     # 4) Create missing instances
     for template in templates:
-        # If already exists, do nothing (preserve snapshot integrity)
+        # If an instance already exists, skip (idempotency)
         if template.id in existingTemplateIds:
             continue
 
@@ -81,12 +81,16 @@ async def ensureInstancesForDate(db: AsyncSession, pollDate: date) -> int:
 
         optionInputs = chooseInstanceOptions(template, plan)
 
+        # Calculate close date based on template's durationDays
+        closeDate = pollDate + timedelta(days=template.durationDays - 1)
+
         instanceId = newId()
         instance = PollInstance(
             id=instanceId,
             templateId=template.id,
             categoryId=template.categoryId,
             pollDate=pollDate,
+            closeDate=closeDate,
             title=template.title,
             question=question,
             pollType=template.pollType,

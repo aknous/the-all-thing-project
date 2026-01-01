@@ -10,6 +10,7 @@ export interface Poll {
   pollId: string;
   templateId: string;
   pollDate: string;
+  closeDate: string;
   title: string;
   question: string | null;
   pollType: PollType;
@@ -24,7 +25,9 @@ export interface PollCategory {
   categoryKey: string;
   categoryName: string;
   sortOrder: number;
+  parentCategoryId?: string | null;
   polls: Poll[];
+  subCategories?: PollCategory[];
 }
 
 export interface PollsData {

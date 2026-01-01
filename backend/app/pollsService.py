@@ -12,14 +12,23 @@ from .models import PollCategory, PollInstance
 
 
 async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
-    # Load categories (for sort + name) and instances for the date
+    # Load top-level categories with subcategories
     categories = (await db.execute(
-        select(PollCategory).order_by(PollCategory.sortOrder, PollCategory.name)
+        select(PollCategory)
+        .options(selectinload(PollCategory.subCategories))
+        .where(PollCategory.parentCategoryId.is_(None))
+        .order_by(PollCategory.sortOrder, PollCategory.name)
     )).scalars().all()
 
+    # Get all active polls for the date:
+    # - pollDate <= given date (poll has started)
+    # - closeDate >= given date (poll hasn't closed yet)
+    # - status == OPEN
     instances = (await db.execute(
         select(PollInstance)
-        .where(PollInstance.pollDate == pollDate)
+        .where(PollInstance.pollDate <= pollDate)
+        .where(PollInstance.closeDate >= pollDate)
+        .where(PollInstance.status == "OPEN")
         # MVP: only show public polls
         .where(PollInstance.audience == "PUBLIC")
         .options(selectinload(PollInstance.options))
@@ -30,12 +39,10 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
     for inst in instances:
         instancesByCategoryId.setdefault(inst.categoryId, []).append(inst)
 
-    categoryBlocks: list[dict[str, Any]] = []
-    for cat in categories:
+    def buildCategoryBlock(cat: PollCategory) -> dict[str, Any] | None:
+        """Build category block with polls and subcategories"""
         catInstances = instancesByCategoryId.get(cat.id, [])
-        if not catInstances:
-            continue
-
+        
         polls = []
         for inst in catInstances:
             options = sorted(inst.options or [], key=lambda o: o.sortOrder)
@@ -43,6 +50,7 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
                 "pollId": inst.id,
                 "templateId": inst.templateId,
                 "pollDate": str(inst.pollDate),
+                "closeDate": str(inst.closeDate),
                 "title": inst.title,
                 "question": inst.question,
                 "pollType": inst.pollType,
@@ -54,14 +62,40 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
                     for o in options
                 ],
             })
-
-        categoryBlocks.append({
+        
+        # Build subcategory blocks (only if we have them loaded)
+        # We only load subCategories for top-level categories, so check if this is top-level
+        subCategoryBlocks = []
+        try:
+            # Try to access subCategories - will work if loaded, otherwise skip
+            if hasattr(cat, 'subCategories') and cat.subCategories is not None:
+                for subCat in sorted(cat.subCategories, key=lambda c: (c.sortOrder, c.name)):
+                    subBlock = buildCategoryBlock(subCat)
+                    if subBlock:
+                        subCategoryBlocks.append(subBlock)
+        except:
+            # If lazy loading fails, just skip subcategories
+            pass
+        
+        # Only include category if it has polls or subcategories with polls
+        if not polls and not subCategoryBlocks:
+            return None
+        
+        return {
             "categoryId": cat.id,
             "categoryKey": cat.key,
             "categoryName": cat.name,
             "sortOrder": cat.sortOrder,
+            "parentCategoryId": cat.parentCategoryId,
             "polls": polls,
-        })
+            "subCategories": subCategoryBlocks,
+        }
+
+    categoryBlocks: list[dict[str, Any]] = []
+    for cat in categories:
+        block = buildCategoryBlock(cat)
+        if block:
+            categoryBlocks.append(block)
 
     return {
         "pollDate": str(pollDate),
