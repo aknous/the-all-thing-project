@@ -38,6 +38,7 @@ export interface PollsData {
 export interface VoteSubmission {
   rankedChoices: string[]; // Array of optionIds in preference order (for both SINGLE and RANKED)
   idempotencyKey?: string;
+  turnstileToken?: string;
 }
 
 export interface PollResult {

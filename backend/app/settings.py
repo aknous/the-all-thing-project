@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     redisUrl: str
     secretKey: str
     adminKey: str
+    
+    # Cloudflare Turnstile (optional, for bot protection)
+    turnstileSecretKey: str | None = None
 
     # Optional cookie settings
     cookieDomain: str | None = None

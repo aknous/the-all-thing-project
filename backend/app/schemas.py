@@ -6,3 +6,4 @@ class VoteInput(BaseModel):
     # For RANKED polls: send ordered optionIds (rank 1..N)
     rankedChoices: list[str] = Field(min_length=1)
     idempotencyKey: str | None = Field(default=None, max_length=128)
+    turnstileToken: str | None = Field(default=None, description="Cloudflare Turnstile verification token")

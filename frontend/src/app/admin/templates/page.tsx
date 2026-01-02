@@ -208,6 +208,7 @@ export default function TemplatesPage() {
                     </div>
                     
                     <div className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                      <p><span className="font-medium">ID:</span> <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs">{template.id}</code></p>
                       <p><span className="font-medium">Key:</span> {template.key}</p>
                       <p><span className="font-medium">Category:</span> {category?.name || 'Unknown'}</p>
                       {template.question && <p><span className="font-medium">Question:</span> {template.question}</p>}

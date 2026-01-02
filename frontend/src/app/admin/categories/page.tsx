@@ -51,8 +51,9 @@ export default function CategoriesPage() {
                   Sort: {category.sortOrder}
                 </span>
               </div>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                <span className="font-medium">Key:</span> {category.key}
+              <div className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                <p><span className="font-medium">ID:</span> <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs">{category.id}</code></p>
+                <p><span className="font-medium">Key:</span> {category.key}</p>
               </div>
             </div>
 

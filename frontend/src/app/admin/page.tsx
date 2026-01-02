@@ -23,22 +23,29 @@ export default function AdminDashboard() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       
-      const [categoriesRes, templatesRes] = await Promise.all([
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
+      const [categoriesRes, templatesRes, instancesRes] = await Promise.all([
         adminFetch(`${API_URL}/admin/categories`),
         adminFetch(`${API_URL}/admin/templates`),
+        adminFetch(`${API_URL}/admin/instances?pollDate=${today}`),
       ]);
 
       const categoriesData = await categoriesRes.json();
       const templatesData = await templatesRes.json();
+      const instancesData = await instancesRes.json();
 
       const categories = categoriesData.categories || [];
       const templates = templatesData.templates || [];
+      const instances = instancesData.instances || [];
+      const openInstances = instances.filter((i: { status: string }) => i.status === 'OPEN');
 
       setStats({
         categoriesCount: categories.length,
         templatesCount: templates.length,
         activeTemplatesCount: templates.filter((t: { isActive: boolean }) => t.isActive).length,
-        openInstancesCount: 0, // Can add later with instances endpoint
+        openInstancesCount: openInstances.length,
       });
     } catch (error) {
       console.error('Failed to load stats:', error);

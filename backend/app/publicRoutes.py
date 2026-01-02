@@ -123,7 +123,15 @@ async def submitVote(
 
     countryCode, regionCode = getCoarseGeo(request)
 
-    # 2) rate limiting (1 vote per IP per poll per day)
+    # 2) Cloudflare Turnstile verification (bot protection)
+    if payload.turnstileToken:
+        from .turnstile import verifyTurnstile
+        turnstileValid = await verifyTurnstile(payload.turnstileToken, clientIp)
+        if not turnstileValid:
+            logVote(pollId, voterHash, ipHash, False, "turnstile_failed")
+            raise HTTPException(status_code=403, detail="Bot verification failed")
+    
+    # 3) rate limiting (1 vote per IP per poll per day)
     allowed = await rateLimit(
         key=f"vote:{pollId}:{ipHash}",
         limit=1,
@@ -133,14 +141,14 @@ async def submitVote(
         logRateLimit("vote", ipHash, f"/polls/{pollId}/vote")
         raise HTTPException(status_code=429, detail="Too many attempts")
 
-    # 3) idempotency (optional but recommended)
+    # 4) idempotency (optional but recommended)
     if payload.idempotencyKey:
         idemKey = f"idem:{pollId}:{voterHash}:{payload.idempotencyKey}"
         if not await setIdempotency(idemKey, ttlSeconds=60):
             # Same request already processed very recently
             return {"ok": True, "deduped": True}
 
-    # 4) fast-path already voted (check both cookie and IP)
+    # 5) fast-path already voted (check both cookie and IP)
     if await hasVoted(pollId, voterHash):
         logVote(pollId, voterHash, ipHash, False, "duplicate_voter_hash")
         raise HTTPException(status_code=409, detail="Already voted")
@@ -149,7 +157,7 @@ async def submitVote(
         logVote(pollId, voterHash, ipHash, False, "duplicate_ip")
         raise HTTPException(status_code=409, detail="Already voted from this network")
 
-    # 5) load poll instance + options
+    # 6) load poll instance + options
     instance = (await db.execute(
         select(PollInstance)
         .where(PollInstance.id == pollId)

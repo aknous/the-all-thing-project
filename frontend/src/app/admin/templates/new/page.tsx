@@ -37,7 +37,7 @@ export default function NewTemplatePage() {
     question: '',
     pollType: 'SINGLE' as 'SINGLE' | 'RANKED',
     maxRank: '',
-    audience: 'public',
+    audience: 'PUBLIC',
     durationDays: '1',
     isActive: true,
   });

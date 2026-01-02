@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Poll } from '@/app/lib/types';
 import { submitVote } from '@/app/lib/api';
 import PollHistorySidebar from './PollHistorySidebar';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 interface PollCardProps {
   poll: Poll;
@@ -23,6 +24,7 @@ export default function PollCard({ poll }: PollCardProps) {
   const [previousVote, setPreviousVote] = useState<string[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   // Calculate time remaining
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function PollCard({ poll }: PollCardProps) {
     try {
       await submitVote(poll.pollId, {
         rankedChoices: selectedOptions,
+        turnstileToken: turnstileToken || undefined,
       });
       
       // Save vote to localStorage
@@ -134,14 +137,19 @@ export default function PollCard({ poll }: PollCardProps) {
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 border border-zinc-200 dark:border-zinc-800">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mb-1">
                 <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
                   {poll.title}
                 </h3>
-                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                  {timeRemaining}
-                </span>
+                {poll.pollType === 'RANKED' && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+                    RANKED CHOICE
+                  </span>
+                )}
               </div>
+              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                {timeRemaining}
+              </span>
             </div>
             <button
               onClick={() => setShowHistory(true)}
@@ -227,14 +235,19 @@ export default function PollCard({ poll }: PollCardProps) {
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 border border-zinc-200 dark:border-zinc-800">
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-1">
               <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
                 {poll.title}
               </h3>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                {timeRemaining}
-              </span>
+              {poll.pollType === 'RANKED' && (
+                <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+                  RANKED CHOICE
+                </span>
+              )}
             </div>
+            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              {timeRemaining}
+            </span>
           </div>
           <button
             onClick={() => setShowHistory(true)}
@@ -329,6 +342,19 @@ export default function PollCard({ poll }: PollCardProps) {
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
+        )}
+
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+            onSuccess={(token) => setTurnstileToken(token)}
+            onError={() => setTurnstileToken(null)}
+            onExpire={() => setTurnstileToken(null)}
+            options={{
+              theme: 'auto',
+              size: 'invisible',
+            }}
+          />
         )}
 
         <button

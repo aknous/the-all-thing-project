@@ -24,18 +24,24 @@ interface SnapshotData {
     title: string;
     pollType: string;
     options: Array<{
-      id: string;
+      optionId: string;
       label: string;
-      votes?: number;
-      percentage?: number;
+      sortOrder: number;
     }>;
     totalVotes?: number;
     totalBallots?: number;
     winnerOptionId?: string | null;
+    results?: Array<{
+      optionId: string;
+      label: string;
+      count: number;
+    }>;
+    rankBreakdown?: Record<string, Record<number, number>>;
     rounds?: Array<{
-      roundNumber: number;
-      eliminated: string[];
-      votes: Record<string, number>;
+      round: number;
+      eliminated: string | null;
+      totals: Record<string, number>;
+      exhausted: number;
     }>;
   };
   createdAt: string;
@@ -369,31 +375,123 @@ export default function OperationsPage() {
                   Results by Option
                 </h4>
                 <div className="space-y-2">
-                  {snapshotData.resultsJson.options?.map((option) => (
-                    <div
-                      key={option.id}
-                      className={`flex justify-between items-center p-2 rounded ${
-                        option.id === snapshotData.winnerOptionId
-                          ? 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
-                          : 'bg-white dark:bg-zinc-900'
-                      }`}
-                    >
-                      <span className="text-zinc-900 dark:text-zinc-100">
-                        {option.label}
-                        {option.id === snapshotData.winnerOptionId && ' 🏆'}
-                      </span>
-                      <div className="text-right">
-                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                          {option.votes || 0} votes
-                        </span>
-                        {option.percentage !== undefined && (
-                          <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400">
-                            ({option.percentage.toFixed(1)}%)
+                  {snapshotData.resultsJson.pollType === 'SINGLE' && snapshotData.resultsJson.results?.map((result) => {
+                    const percentage = (snapshotData.resultsJson.totalVotes ?? 0) > 0 
+                      ? (result.count / (snapshotData.resultsJson.totalVotes ?? 1) * 100) 
+                      : 0;
+                    const isWinner = result.optionId === snapshotData.winnerOptionId;
+                    
+                    return (
+                      <div key={result.optionId} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-zinc-900 dark:text-zinc-100 font-medium">
+                            {result.label}
+                            {isWinner && ' 🏆'}
                           </span>
+                          <span className="text-zinc-600 dark:text-zinc-400">
+                            {result.count} votes ({percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              isWinner
+                                ? 'bg-green-500 dark:bg-green-400'
+                                : 'bg-blue-500 dark:bg-blue-400'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {snapshotData.resultsJson.pollType === 'RANKED' && snapshotData.resultsJson.options?.map((option) => {
+                    const rankData = snapshotData.resultsJson.rankBreakdown?.[option.optionId];
+                    const isWinner = option.optionId === snapshotData.winnerOptionId;
+                    
+                    // Calculate total rankings for this option
+                    const totalRankings = rankData 
+                      ? Object.values(rankData).reduce((sum, count) => sum + count, 0)
+                      : 0;
+                    
+                    // Get FINAL round results (after all IRV eliminations)
+                    const rounds = snapshotData.resultsJson.rounds || [];
+                    const finalRound = rounds.length > 0 ? rounds[rounds.length - 1] : null;
+                    const finalVotes = finalRound?.totals[option.optionId] || 0;
+                    const finalExhausted = finalRound?.exhausted || 0;
+                    const totalBallots = snapshotData.resultsJson.totalBallots || 0;
+                    const activeVotesInFinal = finalRound ? Object.values(finalRound.totals).reduce((sum, v) => sum + v, 0) : 0;
+                    const finalPercentage = activeVotesInFinal > 0 ? (finalVotes / activeVotesInFinal * 100) : 0;
+                    
+                    // Get all rank positions for this option
+                    const ranks = rankData ? Object.entries(rankData)
+                      .filter(([_, count]) => count > 0)
+                      .sort(([a], [b]) => Number(a) - Number(b))
+                      : [];
+                    
+                    return (
+                      <div key={option.optionId} className="space-y-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-900 dark:text-zinc-100 font-medium">
+                              {option.label}
+                              {isWinner && ' 🏆 Winner'}
+                            </span>
+                            <span className="text-zinc-600 dark:text-zinc-400">
+                              {finalVotes} final votes ({finalPercentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                isWinner
+                                  ? 'bg-green-500 dark:bg-green-400'
+                                  : 'bg-blue-500 dark:bg-blue-400'
+                              }`}
+                              style={{ width: `${finalPercentage}%` }}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Rank breakdown */}
+                        {ranks.length > 0 && (
+                          <div className="pl-4 space-y-1.5 border-l-2 border-zinc-200 dark:border-zinc-700">
+                            {ranks.map(([rank, count]) => {
+                              const percentage = totalRankings > 0 ? (count / totalRankings * 100) : 0;
+                              const rankNum = Number(rank);
+                              const barColor = rankNum === 1 
+                                ? 'bg-amber-500 dark:bg-amber-400'
+                                : rankNum === 2 
+                                ? 'bg-blue-500 dark:bg-blue-400'
+                                : rankNum === 3 
+                                ? 'bg-red-500 dark:bg-red-400'
+                                : 'bg-zinc-400 dark:bg-zinc-500';
+                              
+                              return (
+                                <div key={rank} className="space-y-0.5">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-zinc-500 dark:text-zinc-400">
+                                      #{rank} choice
+                                    </span>
+                                    <span className="text-zinc-600 dark:text-zinc-400">
+                                      {count} ({percentage.toFixed(0)}%)
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-1">
+                                    <div
+                                      className={`${barColor} h-1 rounded-full`}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -405,13 +503,13 @@ export default function OperationsPage() {
                   </h4>
                   <div className="space-y-2">
                     {snapshotData.resultsJson.rounds.map((round) => (
-                      <div key={round.roundNumber} className="p-2 bg-white dark:bg-zinc-900 rounded">
+                      <div key={round.round} className="p-2 bg-white dark:bg-zinc-900 rounded">
                         <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100 mb-1">
-                          Round {round.roundNumber}
+                          Round {round.round}
                         </div>
-                        {round.eliminated.length > 0 && (
+                        {round.eliminated && (
                           <div className="text-xs text-red-600 dark:text-red-400">
-                            Eliminated: {round.eliminated.join(', ')}
+                            Eliminated: {round.eliminated}
                           </div>
                         )}
                       </div>
@@ -589,7 +687,7 @@ export default function OperationsPage() {
             ℹ️ Operation Notes
           </h3>
           <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-            <li><strong>Rollover:</strong> Creates instances only if they don't already exist (idempotent).</li>
+            <li><strong>Rollover:</strong> Creates instances only if they don&apos;t already exist (idempotent).</li>
             <li><strong>Close:</strong> Closes polls with closeDate ≤ selected date and creates snapshots.</li>
             <li><strong>Snapshot Active:</strong> Captures current results for active polls without closing them.</li>
             <li><strong>Create Missing:</strong> Only creates snapshots for closed polls that are missing them.</li>

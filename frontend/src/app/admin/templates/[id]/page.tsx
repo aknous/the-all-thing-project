@@ -60,7 +60,7 @@ export default function EditTemplatePage() {
     question: '',
     pollType: 'SINGLE' as 'SINGLE' | 'RANKED',
     maxRank: '',
-    audience: 'public',
+    audience: 'PUBLIC',
     durationDays: '1',
     isActive: true,
   });
@@ -149,7 +149,9 @@ export default function EditTemplatePage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      const payload = {
+      
+      // Update template details
+      const detailsPayload = {
         categoryId: formData.categoryId,
         key: formData.key,
         title: formData.title,
@@ -159,13 +161,23 @@ export default function EditTemplatePage() {
         audience: formData.audience,
         durationDays: parseInt(formData.durationDays),
         isActive: formData.isActive,
-        options: validOptions,
       };
 
       await adminFetch(`${API_URL}/admin/templates/${templateId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(detailsPayload),
+      });
+
+      // Update template options separately
+      const optionsPayload = {
+        options: validOptions,
+      };
+
+      await adminFetch(`${API_URL}/admin/templates/${templateId}/options`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(optionsPayload),
       });
 
       alert('Template updated successfully');

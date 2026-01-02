@@ -223,7 +223,7 @@ export default function PollHistorySidebar({ templateId, pollTitle, onClose }: P
                                       : rankNum === 2 
                                       ? 'bg-blue-500 dark:bg-blue-400'    // Blue for 2nd
                                       : rankNum === 3 
-                                      ? 'bg-orange-500 dark:bg-red-400' // Orange for 3rd
+                                      ? 'bg-red-500 dark:bg-red-400' // Red for 3rd
                                       : 'bg-zinc-400 dark:bg-zinc-500';    // Gray for 4th+
                                     
                                     return (

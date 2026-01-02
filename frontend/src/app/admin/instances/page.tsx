@@ -250,6 +250,7 @@ export default function InstancesPage() {
                     </div>
                     
                     <div className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                      <p><span className="font-medium">ID:</span> <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs">{instance.id}</code></p>
                       <p><span className="font-medium">Category:</span> {category?.name || 'Unknown'}</p>
                       <p><span className="font-medium">Template:</span> {template?.title || 'Unknown'}</p>
                       <p><span className="font-medium">Poll Date:</span> {instance.pollDate}</p>
