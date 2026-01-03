@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminFetch } from '@/app/lib/adminAuth';
+import { getEasternToday } from '@/app/lib/dateUtils';
 import Link from 'next/link';
 
 interface Stats {
@@ -23,8 +24,8 @@ export default function AdminDashboard() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       
-      // Get today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date in Eastern Time
+      const today = getEasternToday();
       
       const [categoriesRes, templatesRes, instancesRes] = await Promise.all([
         adminFetch(`${API_URL}/admin/categories`),

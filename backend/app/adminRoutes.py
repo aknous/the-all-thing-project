@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete, update
 from sqlalchemy.orm import selectinload
@@ -26,6 +26,10 @@ from .models import (
     PollPlanOption,
 )
 from .rollover import ensureInstancesForDate
+from .schemas import ImportDataInput
+
+if TYPE_CHECKING:
+    pass
 
 router = APIRouter(
     prefix="/admin",
@@ -71,6 +75,7 @@ class TemplateCreateInput(BaseModel):
 
 class TemplateUpdateInput(BaseModel):
     categoryId: str | None = None
+    key: str | None = Field(default=None, min_length=2, max_length=64)
     title: str | None = Field(default=None, min_length=2, max_length=256)
     question: str | None = Field(default=None, max_length=1000)
     pollType: PollType | None = None
@@ -379,6 +384,8 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
         if not category:
             raise HTTPException(status_code=404, detail="Category not found")
         template.categoryId = payload.categoryId
+    if payload.key is not None:
+        template.key = sanitize.sanitizeKey(payload.key, maxLength=64)
     if payload.title is not None:
         template.title = sanitize.sanitizeTitle(payload.title, maxLength=256)
     if payload.question is not None:
@@ -428,6 +435,111 @@ async def replaceTemplateOptions(templateId: str, payload: TemplateReplaceOption
 
     await db.commit()
     return {"ok": True, "templateId": templateId, "optionCount": len(payload.options)}
+
+@router.delete("/templates/{templateId}")
+async def deleteTemplate(
+    templateId: str,
+    force: bool = Query(default=False),
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin)
+):
+    """Delete a poll template with safety checks"""
+    from sqlalchemy import func
+    from .models import VoteBallot, VoteRanking
+    
+    template = (await db.execute(
+        select(PollTemplate).where(PollTemplate.id == templateId)
+    )).scalar_one_or_none()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Get all instances for this template
+    instances = (await db.execute(
+        select(PollInstance).where(PollInstance.templateId == templateId)
+    )).scalars().all()
+    
+    instanceCount = len(instances)
+    
+    # Check for existing plans
+    planCount = await db.scalar(
+        select(func.count())
+        .select_from(PollPlan)
+        .where(PollPlan.templateId == templateId)
+    )
+    
+    if not force and instanceCount > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete template with {instanceCount} existing instance(s). Use force=true to override."
+        )
+    
+    # Count votes before deletion
+    voteCount = 0
+    if instanceCount > 0:
+        instanceIds = [inst.id for inst in instances]
+        voteCount = await db.scalar(
+            select(func.count())
+            .select_from(VoteBallot)
+            .where(VoteBallot.instanceId.in_(instanceIds))
+        ) or 0
+    
+    # If force=true, manually delete votes first (due to RESTRICT foreign keys)
+    if force and voteCount > 0:
+        # Get all instance IDs
+        instanceIds = [inst.id for inst in instances]
+        
+        # Delete vote rankings first (they reference ballots)
+        await db.execute(
+            delete(VoteRanking)
+            .where(VoteRanking.ballotId.in_(
+                select(VoteBallot.id).where(VoteBallot.instanceId.in_(instanceIds))
+            ))
+        )
+        
+        # Delete vote ballots
+        await db.execute(
+            delete(VoteBallot).where(VoteBallot.instanceId.in_(instanceIds))
+        )
+        
+        await db.flush()
+    
+    # Audit log
+    await logAdminAction(
+        db=db,
+        action="template_deleted",
+        entityType="template",
+        entityId=templateId,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes={
+            "title": template.title,
+            "key": template.key,
+            "force": force,
+            "instanceCount": instanceCount,
+            "planCount": planCount,
+            "voteCount": voteCount
+        }
+    )
+    
+    # Delete the template (cascade will handle plans and instances)
+    await db.delete(template)
+    await db.commit()
+    
+    return {
+        "ok": True,
+        "deletedTemplate": {
+            "id": templateId,
+            "title": template.title,
+            "key": template.key
+        },
+        "cascadeDeleted": {
+            "instances": instanceCount,
+            "plans": planCount,
+            "votes": voteCount
+        }
+    }
 
 # -----------------------------
 # Plan Routes (per-date overrides)
@@ -534,7 +646,9 @@ async def listInstances(pollDate: date = Query(...), db: AsyncSession = Depends(
             {
                 "id": i.id,
                 "templateId": i.templateId,
+                "categoryId": i.categoryId,
                 "pollDate": str(i.pollDate),
+                "closeDate": str(i.closeDate),
                 "title": i.title,
                 "question": i.question,
                 "pollType": i.pollType,
@@ -1074,3 +1188,188 @@ async def getInstanceSnapshot(
             "createdAt": snapshot.createdAt.isoformat(),
         },
     }
+
+# ----------------------
+# Import/Export
+# ----------------------
+
+@router.post("/import")
+async def importData(
+    data: ImportDataInput = Body(...),
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """Import categories and templates from JSON"""
+    from .schemas import ImportResult, ImportResultItem
+    
+    categoriesCreated = 0
+    templatesCreated = 0
+    errors = []
+    details = []
+    
+    # Map of category keys to IDs
+    categoryMap = {}
+    
+    # First pass: create/update categories
+    for catInput in data.categories:
+        try:
+            # Sanitize inputs
+            clean_key = sanitize.sanitizeKey(catInput.key)
+            clean_name = sanitize.sanitizeName(catInput.name)
+            clean_emoji = catInput.emoji.strip() if catInput.emoji else None
+            
+            # Check if category exists
+            existing = (await db.execute(
+                select(PollCategory).where(PollCategory.key == clean_key)
+            )).scalar_one_or_none()
+            
+            if existing:
+                # Update existing
+                existing.name = clean_name
+                existing.emoji = clean_emoji
+                existing.sortOrder = catInput.sortOrder
+                categoryMap[clean_key] = existing.id
+                details.append(ImportResultItem(
+                    type="category",
+                    action="updated",
+                    key=clean_key,
+                    name=clean_name
+                ))
+            else:
+                # Create new
+                category = PollCategory(
+                    id=str(uuid.uuid4()),
+                    key=clean_key,
+                    name=clean_name,
+                    emoji=clean_emoji,
+                    sortOrder=catInput.sortOrder
+                )
+                db.add(category)
+                await db.flush()
+                categoryMap[clean_key] = category.id
+                categoriesCreated += 1
+                details.append(ImportResultItem(
+                    type="category",
+                    action="created",
+                    key=clean_key,
+                    name=clean_name
+                ))
+                
+        except Exception as e:
+            error_msg = f"Category '{catInput.key}': {str(e)}"
+            errors.append(error_msg)
+            details.append(ImportResultItem(
+                type="category",
+                action="skipped",
+                key=catInput.key,
+                name=catInput.name,
+                error=str(e)
+            ))
+    
+    # Commit categories first
+    await db.commit()
+    
+    # Second pass: create templates
+    for tmplInput in data.templates:
+        try:
+            # Get category ID
+            categoryId = categoryMap.get(tmplInput.categoryKey)
+            if not categoryId:
+                # Look up category by key in database
+                cat = (await db.execute(
+                    select(PollCategory).where(PollCategory.key == tmplInput.categoryKey)
+                )).scalar_one_or_none()
+                if not cat:
+                    raise ValueError(f"Category '{tmplInput.categoryKey}' not found")
+                categoryId = cat.id
+            
+            # Sanitize inputs
+            clean_key = sanitize.sanitizeKey(tmplInput.key)
+            clean_title = sanitize.sanitizeTitle(tmplInput.title)
+            clean_question = sanitize.sanitizeQuestion(tmplInput.question) if tmplInput.question else None
+            
+            # Check if template exists
+            existing_tmpl = (await db.execute(
+                select(PollTemplate).where(PollTemplate.key == clean_key)
+            )).scalar_one_or_none()
+            
+            if existing_tmpl:
+                details.append(ImportResultItem(
+                    type="template",
+                    action="skipped",
+                    key=clean_key,
+                    name=clean_title,
+                    error="Template with this key already exists"
+                ))
+                continue
+            
+            # Create template
+            template = PollTemplate(
+                id=str(uuid.uuid4()),
+                categoryId=categoryId,
+                key=clean_key,
+                title=clean_title,
+                question=clean_question,
+                pollType=tmplInput.pollType,
+                maxRank=tmplInput.maxRank,
+                audience=tmplInput.audience,
+                durationDays=tmplInput.durationDays,
+                isActive=tmplInput.isActive
+            )
+            db.add(template)
+            await db.flush()
+            
+            # Create options
+            for optInput in tmplInput.options:
+                clean_opt_key = sanitize.sanitizeKey(optInput.key)
+                clean_label = sanitize.sanitizeLabel(optInput.label)
+                
+                option = PollTemplateOption(
+                    id=str(uuid.uuid4()),
+                    templateId=template.id,
+                    label=clean_label,
+                    sortOrder=optInput.sortOrder
+                )
+                db.add(option)
+            
+            templatesCreated += 1
+            details.append(ImportResultItem(
+                type="template",
+                action="created",
+                key=clean_key,
+                name=clean_title
+            ))
+            
+        except Exception as e:
+            error_msg = f"Template '{tmplInput.key}': {str(e)}"
+            errors.append(error_msg)
+            details.append(ImportResultItem(
+                type="template",
+                action="skipped",
+                key=tmplInput.key,
+                name=tmplInput.title,
+                error=str(e)
+            ))
+    
+    await db.commit()
+    
+    # Log the import action
+    await logAdminAction(
+        db=db,
+        action="IMPORT_DATA",
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        extraData={
+            "categoriesCreated": categoriesCreated,
+            "templatesCreated": templatesCreated,
+            "errorCount": len(errors)
+        }
+    )
+    
+    return ImportResult(
+        categoriesCreated=categoriesCreated,
+        templatesCreated=templatesCreated,
+        errors=errors,
+        details=details
+    )

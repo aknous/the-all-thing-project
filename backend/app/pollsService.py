@@ -21,17 +21,20 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
     )).scalars().all()
 
     # Get all active polls for the date:
+    # - status == OPEN (most important - poll must be open)
     # - pollDate <= given date (poll has started)
-    # - closeDate >= given date (poll hasn't closed yet)
-    # - status == OPEN
+    # This ensures that polls from previous days that haven't been closed yet
+    # are still shown until the rollover process closes them
     instances = (await db.execute(
         select(PollInstance)
-        .where(PollInstance.pollDate <= pollDate)
-        .where(PollInstance.closeDate >= pollDate)
         .where(PollInstance.status == "OPEN")
+        .where(PollInstance.pollDate <= pollDate)
         # MVP: only show public polls
         .where(PollInstance.audience == "PUBLIC")
-        .options(selectinload(PollInstance.options))
+        .options(
+            selectinload(PollInstance.options),
+            selectinload(PollInstance.template),  # Load template to get key
+        )
         .order_by(PollInstance.categoryId, PollInstance.templateId)
     )).scalars().all()
 
@@ -49,6 +52,7 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
             polls.append({
                 "pollId": inst.id,
                 "templateId": inst.templateId,
+                "templateKey": inst.template.key if inst.template else None,
                 "pollDate": str(inst.pollDate),
                 "closeDate": str(inst.closeDate),
                 "title": inst.title,

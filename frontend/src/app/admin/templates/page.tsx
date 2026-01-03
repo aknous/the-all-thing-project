@@ -106,6 +106,47 @@ export default function TemplatesPage() {
     }
   };
 
+  const deleteTemplate = async (template: Template) => {
+    const templateTitle = template.title;
+    const forceDelete = confirm(
+      `Are you sure you want to delete "${templateTitle}"?\n\n` +
+      `This will also delete all related instances and plans.\n\n` +
+      `Click OK to confirm deletion.`
+    );
+    
+    if (!forceDelete) return;
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      const response = await adminFetch(`${API_URL}/admin/templates/${template.id}?force=true`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete template');
+      }
+
+      const result = await response.json();
+      
+      // Show success message with cascade info
+      alert(
+        `Template deleted successfully!\n\n` +
+        `Deleted: ${result.deletedTemplate.title}\n` +
+        `Also removed:\n` +
+        `- ${result.cascadeDeleted.instances} poll instance(s)\n` +
+        `- ${result.cascadeDeleted.plans} plan(s)\n` +
+        `- ${result.cascadeDeleted.votes} vote(s)`
+      );
+      
+      // Remove from local state
+      setTemplates(templates.filter(t => t.id !== template.id));
+    } catch (error) {
+      console.error('Failed to delete template:', error);
+      alert(`Failed to delete template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const filteredTemplates = templates.filter(t => {
     if (filterCategory && t.categoryId !== filterCategory) return false;
     if (filterActive === 'active' && !t.isActive) return false;
@@ -236,6 +277,14 @@ export default function TemplatesPage() {
                       }`}
                     >
                       {template.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => deleteTemplate(template)}
+                      className="px-3 py-2 text-sm bg-red-100 dark:bg-red-900/20 hover:bg-red-200 dark:hover:bg-red-900/30 
+                               text-red-700 dark:text-red-400 rounded-lg transition-colors"
+                      title="Delete template"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>

@@ -9,6 +9,7 @@ export interface PollOption {
 export interface Poll {
   pollId: string;
   templateId: string;
+  templateKey: string;
   pollDate: string;
   closeDate: string;
   title: string;

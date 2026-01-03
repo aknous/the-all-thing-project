@@ -2,32 +2,51 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter, useParams } from 'next/navigation';
 import { PollCategory } from '@/app/lib/types';
 
 interface SidebarProps {
   categories: PollCategory[];
-  activeCategory: string | null;
-  onSelectCategory: (categoryId: string | null) => void;
+}
+
+// Helper to find parent category by child ID
+function findParentCategory(categories: PollCategory[], childId: string): PollCategory | null {
+  for (const cat of categories) {
+    if (cat.subCategories) {
+      for (const subCat of cat.subCategories) {
+        if (subCat.categoryId === childId) {
+          return cat;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function CategoryNavItem({ 
-  category, 
-  activeCategory, 
-  onSelectCategory,
+  category,
+  allCategories,
   depth = 0 
 }: { 
-  category: PollCategory; 
-  activeCategory: string | null;
-  onSelectCategory: (categoryId: string | null) => void;
+  category: PollCategory;
+  allCategories: PollCategory[];
   depth?: number;
 }) {
-  const isActive = activeCategory === category.categoryId;
+  const params = useParams();
+  const router = useRouter();
+  const categoryKey = params?.categoryKey as string | undefined;
+  
+  const isActive = categoryKey === category.categoryKey;
   const hasSubCategories = category.subCategories && category.subCategories.length > 0;
+  
+  const handleClick = () => {
+    router.push(`/polls/${category.categoryKey}`);
+  };
   
   return (
     <div>
       <button
-        onClick={() => onSelectCategory(category.categoryId)}
+        onClick={handleClick}
         className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
           depth > 0 ? 'ml-4 text-sm' : ''
         } ${
@@ -47,8 +66,7 @@ function CategoryNavItem({
               <CategoryNavItem
                 key={subCategory.categoryId}
                 category={subCategory}
-                activeCategory={activeCategory}
-                onSelectCategory={onSelectCategory}
+                allCategories={allCategories}
                 depth={depth + 1}
               />
             ))}
@@ -58,24 +76,14 @@ function CategoryNavItem({
   );
 }
 
-export default function Sidebar({ categories, activeCategory, onSelectCategory }: SidebarProps) {
-  return (
-    <aside className="w-64 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-      <div className="sticky top-0 h-screen overflow-y-auto">
-        {/* Logo */}
-        <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-          <Link href="/" className="block">
-            <Image
-              src="/TheAllThingProject-LogoFull-White.png"
-              alt="The All Thing Project"
-              width={300}
-              height={75}
-              priority
-              className="h-14 w-auto"
-            />
-          </Link>
-        </div>
+export default function Sidebar({ categories }: SidebarProps) {
+  const router = useRouter();
+  const params = useParams();
+  const hasActivePath = params?.parentCategory || params?.subCategory;
 
+  return (
+    <aside className="w-64 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex-shrink-0 relative z-10">
+      <div className="sticky top-0 h-screen overflow-y-auto">
         {/* Navigation */}
         <div className="p-6">
           <h2 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">
@@ -85,9 +93,9 @@ export default function Sidebar({ categories, activeCategory, onSelectCategory }
           <nav className="space-y-1">
             {/* All Polls option */}
             <button
-              onClick={() => onSelectCategory(null)}
+              onClick={() => router.push('/polls')}
               className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                activeCategory === null
+                !hasActivePath
                   ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
                   : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               }`}
@@ -102,8 +110,7 @@ export default function Sidebar({ categories, activeCategory, onSelectCategory }
                 <CategoryNavItem
                   key={category.categoryId}
                   category={category}
-                  activeCategory={activeCategory}
-                  onSelectCategory={onSelectCategory}
+                  allCategories={categories}
                 />
               ))}
           </nav>

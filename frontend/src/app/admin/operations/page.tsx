@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { adminFetch } from '@/app/lib/adminAuth';
+import { getEasternToday } from '@/app/lib/dateUtils';
 
 interface PollInstance {
   id: string;
@@ -67,7 +68,7 @@ export default function OperationsPage() {
     setLoadingPolls(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      const today = new Date().toISOString().split('T')[0];
+      const today = getEasternToday();
       const res = await adminFetch(`${API_URL}/admin/instances?pollDate=${today}`);
       const data = await res.json();
       
@@ -262,7 +263,7 @@ export default function OperationsPage() {
   };
 
   const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
+    return getEasternToday();
   };
 
   return (

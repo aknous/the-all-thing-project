@@ -1,0 +1,38 @@
+{
+  "templates": [
+    {
+      "categoryKey": "general",
+      "key": "favorite-color",
+      "title": "Smart Phones",
+      "question": "What kind of smart phone do you use?",
+      "pollType": "SINGLE",
+      "maxRank": null,
+      "audience": "PUBLIC",
+      "durationDays": 1,
+      "isActive": true,
+      "options": [
+        { "key": "iphone", "label": "Apple iPhone", "sortOrder": 1 },
+        { "key": "android", "label": "Samsung Galaxy", "sortOrder": 2 },
+        { "key": "pixel", "label": "Google Pixel", "sortOrder": 3 },
+        { "key": "other", "label": "Other", "sortOrder": 4 }
+      ]
+    },
+    {
+      "categoryKey": "general",
+      "key": "best-season",
+      "title": "What's the best season?",
+      "question": "Rank the seasons from best to worst!",
+      "pollType": "RANKED",
+      "maxRank": 4,
+      "audience": "PUBLIC",
+      "durationDays": 1,
+      "isActive": true,
+      "options": [
+        { "key": "spring", "label": "Spring", "sortOrder": 1 },
+        { "key": "summer", "label": "Summer", "sortOrder": 2 },
+        { "key": "fall", "label": "Fall", "sortOrder": 3 },
+        { "key": "winter", "label": "Winter", "sortOrder": 4 }
+      ]
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 # app/sanitize.py
-import html
 import re
 
 def sanitizeText(text: str | None, maxLength: int | None = None) -> str | None:
     """
     Sanitize user input to prevent XSS attacks.
-    - Escapes HTML entities
-    - Removes potentially dangerous patterns
+    - Normalizes whitespace
+    - Removes null bytes and control characters
     - Enforces max length if specified
+    
+    Note: Does NOT HTML-escape - that should happen during rendering, not storage.
     """
     if text is None:
         return None
@@ -18,11 +19,13 @@ def sanitizeText(text: str | None, maxLength: int | None = None) -> str | None:
     if not text:
         return text
     
-    # Escape HTML entities
-    text = html.escape(text)
-    
-    # Remove null bytes
+    # Remove null bytes and other control characters (except newlines/tabs)
     text = text.replace('\x00', '')
+    # Remove other control characters except \n, \r, \t
+    text = ''.join(char for char in text if char >= ' ' or char in '\n\r\t')
+    
+    # Normalize multiple spaces to single space
+    text = re.sub(r' +', ' ', text)
     
     # Enforce max length
     if maxLength and len(text) > maxLength:

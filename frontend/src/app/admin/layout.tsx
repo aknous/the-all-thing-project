@@ -37,12 +37,12 @@ export default function AdminLayout({
     return <>{children}</>;
   }
 
-  // Wait for client-side hydration
+  // Wait for client-side hydration before checking auth
   if (!hasMounted) {
     return null;
   }
   
-  // Check auth after mount
+  // Check auth after mount (safe because hasMounted is true)
   if (!isAuthenticated()) {
     return null;
   }
@@ -53,6 +53,7 @@ export default function AdminLayout({
     { href: '/admin/templates', label: 'Templates' },
     { href: '/admin/instances', label: 'Instances' },
     { href: '/admin/operations', label: 'Operations' },
+    { href: '/admin/import', label: 'Import' },
   ];
 
   return (

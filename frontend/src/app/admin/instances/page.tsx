@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminFetch } from '@/app/lib/adminAuth';
+import { getEasternToday } from '@/app/lib/dateUtils';
 import Link from 'next/link';
 
 interface Instance {
@@ -46,8 +47,8 @@ export default function InstancesPage() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       
-      // Get today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date in Eastern Time
+      const today = getEasternToday();
       setFilterDate(today);
       
       const [instancesRes, categoriesRes, templatesRes] = await Promise.all([

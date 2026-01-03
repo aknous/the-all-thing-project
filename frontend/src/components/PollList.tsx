@@ -5,7 +5,32 @@ interface PollListProps {
   categories: PollCategory[];
 }
 
-function CategorySection({ category, depth = 0 }: { category: PollCategory; depth?: number }) {
+// Helper to find parent category
+function findParentCategory(categories: PollCategory[], childId: string): PollCategory | null {
+  for (const cat of categories) {
+    if (cat.subCategories) {
+      for (const subCat of cat.subCategories) {
+        if (subCat.categoryId === childId) {
+          return cat;
+        }
+      }
+      // Recursively search deeper
+      const found = findParentCategory(cat.subCategories, childId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function CategorySection({ 
+  category, 
+  allCategories,
+  depth = 0 
+}: { 
+  category: PollCategory;
+  allCategories: PollCategory[];
+  depth?: number;
+}) {
   const hasPolls = category.polls && category.polls.length > 0;
   const hasSubCategories = category.subCategories && category.subCategories.length > 0;
   
@@ -24,7 +49,12 @@ function CategorySection({ category, depth = 0 }: { category: PollCategory; dept
       {hasPolls && (
         <div className="space-y-4">
           {category.polls.map((poll) => (
-            <PollCard key={poll.pollId} poll={poll} />
+            <PollCard 
+              key={poll.pollId} 
+              poll={poll}
+              category={category}
+              allCategories={allCategories}
+            />
           ))}
         </div>
       )}
@@ -35,7 +65,8 @@ function CategorySection({ category, depth = 0 }: { category: PollCategory; dept
           {category.subCategories!.map((subCategory) => (
             <CategorySection 
               key={subCategory.categoryId} 
-              category={subCategory} 
+              category={subCategory}
+              allCategories={allCategories}
               depth={depth + 1} 
             />
           ))}
@@ -50,7 +81,10 @@ export default function PollList({ categories }: PollListProps) {
     <div className="space-y-8">
       {categories.map((category) => (
         <section key={category.categoryId}>
-          <CategorySection category={category} />
+          <CategorySection 
+            category={category}
+            allCategories={categories}
+          />
         </section>
       ))}
     </div>

@@ -47,6 +47,7 @@ Commands:
   replace-instance        Replace a poll instance with fresh one from template+plan
   update-instance-category Update an instance's category
   update-template-category Update a template's category
+  delete-template         Delete a poll template (with safety checks)
   clean-duplicates        Remove duplicate instances (keeps most recent OPEN per template/date)
   
   find-missing-snapshots  Find closed polls without snapshots
@@ -65,6 +66,7 @@ Options:
   --status STATUS        Filter by status (OPEN, CLOSED)
   --instance-id ID       Instance ID for instance operations
   --template-id ID       Template ID for template operations
+  --force                Force deletion (skip safety checks)
   --count N              Number of test votes to create (default: 1)
   --rankings OPTIONIDS   Comma-separated option IDs in rank order (for test-vote)
   --random               Randomize vote selections for each test vote
@@ -75,6 +77,8 @@ Examples:
   python -m app.adminCli instances --date 2025-12-30
   python -m app.adminCli close-instance --instance-id abc123
   python -m app.adminCli replace-instance --instance-id abc123
+  python -m app.adminCli delete-template --template-id abc123
+  python -m app.adminCli delete-template --template-id abc123 --force
   python -m app.adminCli rollover --date 2025-12-30
   python -m app.adminCli close-date --date 2025-12-30
   python -m app.adminCli find-missing-snapshots
@@ -969,10 +973,70 @@ def parseArgs() -> tuple[str, dict]:
         elif arg == '--active':
             options['isActive'] = sys.argv[i + 1].lower() == 'true'
             i += 2
+        elif arg == '--force':
+            options['force'] = True
+            i += 1
         else:
             i += 1
     
     return command, options
+
+
+async def deleteTemplate(templateId: str, force: bool = False):
+    """Delete a poll template with safety checks"""
+    async with sessionFactory() as db:
+        # Get the template
+        template = (await db.execute(
+            select(PollTemplate).where(PollTemplate.id == templateId)
+        )).scalar_one_or_none()
+        
+        if not template:
+            print(f"Error: Template not found: {templateId}")
+            sys.exit(1)
+        
+        # Check for existing instances
+        instanceCount = await db.scalar(
+            select(func.count())
+            .select_from(PollInstance)
+            .where(PollInstance.templateId == templateId)
+        )
+        
+        # Check for existing plans
+        planCount = await db.scalar(
+            select(func.count())
+            .select_from(PollPlan)
+            .where(PollPlan.templateId == templateId)
+        )
+        
+        if not force and instanceCount > 0:
+            print(f"✗ Error: Cannot delete template with {instanceCount} existing instance(s)")
+            print(f"  Use --force to delete anyway (will cascade delete all instances and plans)")
+            sys.exit(1)
+        
+        print(f"\n{'='*100}")
+        print(f"Deleting Template: {template.title}")
+        print(f"{'='*100}\n")
+        print(f"Template ID: {templateId}")
+        print(f"Category ID: {template.categoryId}")
+        print(f"Key: {template.key}")
+        print(f"Poll Type: {template.pollType}")
+        print(f"Active: {template.isActive}")
+        print(f"\nRelated records:")
+        print(f"  Instances: {instanceCount}")
+        print(f"  Plans: {planCount}")
+        print()
+        
+        if force and (instanceCount > 0 or planCount > 0):
+            print(f"⚠️  WARNING: Force deletion will cascade delete all related records!")
+            print()
+        
+        # Delete the template (cascade will handle plans and instances if force=True)
+        await db.delete(template)
+        await db.commit()
+        
+        print(f"✓ Deleted template: {template.title}")
+        if instanceCount > 0 or planCount > 0:
+            print(f"  Cascade deleted {instanceCount} instance(s) and {planCount} plan(s)")
 
 
 async def cleanDuplicateInstances():
@@ -1104,6 +1168,12 @@ async def main():
                 print("Error: --template-id and --category-id are required")
                 sys.exit(1)
             await updateTemplateCategory(options['templateId'], options['categoryId'])
+        
+        elif command == 'delete-template':
+            if 'templateId' not in options:
+                print("Error: --template-id is required")
+                sys.exit(1)
+            await deleteTemplate(options['templateId'], options.get('force', False))
         
         elif command == 'find-missing-snapshots':
             await findMissingSnapshots()
