@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getTodayPolls } from '@/lib/api';
 import { PollCategory, Poll } from '@/lib/types';
@@ -20,7 +20,7 @@ function findCategoryByKey(categories: PollCategory[], key: string): PollCategor
   return null;
 }
 
-export default function PollsPage() {
+function PollsPageContent() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('category');
   const [categories, setCategories] = useState<PollCategory[]>(() => getCachedCategories() || []);
@@ -166,14 +166,7 @@ export default function PollsPage() {
         <h1 className="text-3xl font-bold mb-2 text-zinc-900 dark:text-zinc-100">
           {effectiveCategory === 'featured' ? 'Featured Polls' : selectedCategoryData ? selectedCategoryData.categoryName : "Today's Polls"}
         </h1>
-        <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-8">
-          {effectiveCategory === 'featured' 
-            ? "Our handpicked selection of today's most important polls."
-            : selectedCategoryData 
-              ? `Polls in ${selectedCategoryData.categoryName}`
-              : "Vote on today's questions and see how others are thinking."
-          }
-        </p>
+
         
         {displayCategories.length === 0 || displayCategories.every(cat => cat.polls.length === 0) ? (
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -186,5 +179,20 @@ export default function PollsPage() {
         )}
       </div>
     </PublicLayout>
+  );
+}
+
+export default function PollsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <PollsPageContent />
+    </Suspense>
   );
 }
