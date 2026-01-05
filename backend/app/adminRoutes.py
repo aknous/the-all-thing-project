@@ -82,9 +82,13 @@ class TemplateUpdateInput(BaseModel):
     maxRank: int | None = Field(default=None, ge=1)
     audience: Audience | None = None
     durationDays: int | None = Field(default=None, ge=1, le=365)
+    featured: bool | None = None
 
 class TemplateActiveInput(BaseModel):
     isActive: bool
+
+class TemplateFeaturedInput(BaseModel):
+    featured: bool
 
 class InstanceUpdateInput(BaseModel):
     categoryId: str | None = None
@@ -139,6 +143,7 @@ def serializeTemplate(template: PollTemplate, includeOptions: bool = False) -> d
         "audience": template.audience,
         "durationDays": template.durationDays,
         "isActive": template.isActive,
+        "featured": template.featured,
     }
     if includeOptions:
         options = sorted(template.defaultOptions or [], key=lambda o: o.sortOrder)
@@ -398,6 +403,8 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
         template.audience = payload.audience
     if payload.durationDays is not None:
         template.durationDays = payload.durationDays
+    if payload.featured is not None:
+        template.featured = payload.featured
 
     if template.pollType == "RANKED" and template.maxRank is not None and template.maxRank < 2:
         raise HTTPException(status_code=422, detail="maxRank must be >= 2 for ranked polls")
@@ -412,6 +419,16 @@ async def setTemplateActive(templateId: str, payload: TemplateActiveInput, db: A
         raise HTTPException(status_code=404, detail="Template not found")
 
     template.isActive = payload.isActive
+    await db.commit()
+    return {"ok": True, "template": serializeTemplate(template, includeOptions=False)}
+
+@router.patch("/templates/{templateId}/featured")
+async def setTemplateFeatured(templateId: str, payload: TemplateFeaturedInput, db: AsyncSession = Depends(getDb)):
+    template = (await db.execute(select(PollTemplate).where(PollTemplate.id == templateId))).scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    template.featured = payload.featured
     await db.commit()
     return {"ok": True, "template": serializeTemplate(template, includeOptions=False)}
 
@@ -1314,7 +1331,8 @@ async def importData(
                 maxRank=tmplInput.maxRank,
                 audience=tmplInput.audience,
                 durationDays=tmplInput.durationDays,
-                isActive=tmplInput.isActive
+                isActive=tmplInput.isActive,
+                featured=tmplInput.featured
             )
             db.add(template)
             await db.flush()

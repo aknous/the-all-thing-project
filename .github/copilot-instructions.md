@@ -194,25 +194,240 @@ fly secrets set DATABASE_URL="postgres://..." REDIS_URL="redis://..." SECRET_KEY
 ### Tech Stack
 - **Framework**: Next.js 14+ (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **CAPTCHA**: Recommended - Cloudflare Turnstile or hCaptcha (lighter than reCAPTCHA)
+- **Styling**: Tailwind CSS v4
+- **CAPTCHA**: Cloudflare Turnstile (integrated via @marsidev/react-turnstile)
+- **Theme**: Dark mode support with localStorage persistence
 
-### Key Components Needed
-1. **PollList** - Groups polls by category, hides empty categories
-2. **PollCard** - Displays single poll with voting UI
-3. **RankedChoiceVoter** - Drag-and-drop or numbered ranking interface
-4. **SingleChoiceVoter** - Radio button selection
-5. **CategoryGroup** - Collapsible category sections
+### Project Structure
+```
+frontend/src/
+├── app/
+│   ├── layout.tsx              # Root layout with theme script
+│   ├── page.tsx                # Home page (redirects to /polls)
+│   ├── polls/
+│   │   ├── page.tsx            # Main polls listing (defaults to Featured)
+│   │   └── [categoryKey]/
+│   │       ├── page.tsx        # Category view
+│   │       └── [templateKey]/
+│   │           └── page.tsx    # Poll detail with history
+│   └── globals.css             # Tailwind v4 configuration
+├── components/
+│   ├── PublicLayout.tsx        # Sidebar navigation + search
+│   ├── CategoriesNavigation.tsx # Unused (integrated into PublicLayout)
+│   ├── PollList.tsx            # Renders categories and polls
+│   ├── PollCard.tsx            # Individual poll with voting UI
+│   ├── ThemeToggle.tsx         # Dark mode toggle
+│   └── IRVRoundsVisualization.tsx # Ranked-choice results display
+└── lib/
+    ├── api.ts                  # Backend API client
+    └── types.ts                # TypeScript interfaces
+```
+
+### Key Components
+
+#### PublicLayout.tsx
+- **Purpose**: Main layout with sidebar navigation and search
+- **Features**:
+  - Integrated Featured polls section at top of navigation
+  - Active page markers and visible section highlights
+  - Global search across all poll titles/questions
+  - Search results dropdown with poll title, question, and category badge
+  - Responsive sidebar (collapsible on mobile)
+- **Navigation Structure**:
+  ```typescript
+  const navCategories = [
+    { categoryKey: 'featured', categoryName: 'Featured' },
+    ...sortedCategories
+  ];
+  ```
+- **Search Implementation**: Uses `useMemo` to prevent cascading renders
+- **State Management**: Tracks `activeCategory`, `activeParent`, `visibleSection`, `searchQuery`, `showSearchResults`
+
+#### PollCard.tsx
+- **Purpose**: Individual poll display and voting interface
+- **Key Features**:
+  - Always expanded (no collapse functionality)
+  - Supports both SINGLE and RANKED poll types
+  - Cloudflare Turnstile integration for vote submission
+  - LocalStorage for vote state persistence
+  - Shows vote confirmation with results after submission
+  - Color accents: emerald primary, blue secondary
+- **Props**: `poll`, `category`, `allCategories`
+- **Removed**: `alwaysExpanded` prop (always shows full content)
+- **Styling**: 
+  - Success state: `border-l-4 border-emerald-500` with gradient background
+  - Voting state: `border-l-4 border-blue-500`
+  - Options: `border-2 hover:border-emerald-500`
+
+#### PollList.tsx
+- **Purpose**: Renders list of categories and their polls
+- **Features**:
+  - Groups polls by category
+  - Gradient headers: `bg-gradient-to-r from-emerald-600 to-blue-600`
+  - Border accents: `border-b-2 border-emerald-500/50`
+- **Props**: `categories: PollCategory[]`
+
+#### ThemeToggle.tsx
+- **Purpose**: Dark mode toggle button
+- **Implementation**:
+  - Uses DOM manipulation directly (avoids cascading renders)
+  - Persists to localStorage
+  - Force update pattern: `const [, forceUpdate] = useState({})`
+  - Checks `document.documentElement.classList.contains('dark')`
+- **Important**: Root layout includes inline script to set theme before hydration
+
+#### IRVRoundsVisualization.tsx
+- **Purpose**: Displays ranked-choice voting (IRV) round-by-round results
+- **Features**:
+  - Shows each elimination round
+  - Vote transfer visualization
+  - Winner highlighting
+- **Used In**: Poll detail page history section
+
+### Page Routing & Navigation
+
+#### Featured Polls
+- **Default landing page**: `/polls` defaults to showing Featured category
+- **Implementation**:
+  ```typescript
+  const effectiveCategory = categoryParam || selectedCategory || 'featured';
+  ```
+- **Data Structure**: `extractFeaturedPolls()` returns `PollCategory[]` preserving original category structure
+  - Each featured poll maintains reference to its original category
+  - Enables correct URL generation: `/polls/{originalCategoryKey}/{templateKey}`
+- **Navigation**: Featured appears as first item in sidebar with active markers
+
+#### URL Structure
+- `/polls` - Polls listing (defaults to Featured)
+- `/polls/featured` - Featured polls explicitly
+- `/polls/{categoryKey}` - Specific category view
+- `/polls/{categoryKey}/{templateKey}` - Individual poll detail page
+
+#### Layout & Centering
+- **Container width**: `max-w-3xl` (768px) for optimal readability
+- **Centering**: `mx-auto` on all main content containers
+- **Applied to**:
+  - `/polls/page.tsx` main content area
+  - `/polls/[categoryKey]/[templateKey]/page.tsx` detail view
+  - Both "not found" states
+
+### Theme System
+
+#### Implementation
+1. **Root Layout Script** (runs before React hydration):
+   ```typescript
+   <html lang="en" suppressHydrationWarning>
+     <head>
+       <script dangerouslySetInnerHTML={{ __html: `
+         const theme = localStorage.getItem('theme') || 
+           (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+         if (theme === 'dark') document.documentElement.classList.add('dark');
+       `}} />
+     </head>
+   ```
+2. **ThemeToggle Component**: Manipulates DOM directly, updates localStorage
+3. **Tailwind**: Uses `dark:` variants throughout components
+
+### Color Scheme
+- **Primary**: Emerald (`#10b981` / `emerald-500/600`)
+- **Secondary**: Blue (`#3b82f6` / `blue-500/600`)
+- **Gradients**: `from-emerald-600 to-blue-600` on headers and links
+- **Borders**: `border-emerald-500` for active/hover states
+- **Usage**:
+  - Category headers: gradient text with emerald border
+  - Poll cards: blue border when voting, emerald when voted
+  - Buttons/options: emerald hover states
+  - Links: emerald-to-blue gradient on hover
+
+### Search Functionality
+- **Scope**: Searches across all poll titles and questions
+- **UI**: Dropdown below search input showing:
+  - Poll title
+  - Poll question (if present)
+  - Category badge
+- **Behavior**:
+  - Opens on input focus/typing
+  - Closes on outside click
+  - Clears on result selection
+  - Navigates to poll detail page on click
+- **Performance**: Uses `useMemo` to avoid cascading renders
 
 ### API Integration
-- Base URL: `https://the-all-thing-backend.fly.dev` (or configure via env)
-- Endpoints:
-  - `GET /polls/today` - Today's active polls
-  - `POST /polls/vote` - Submit vote (returns cookie)
-- Cookie handling: Browser automatically manages `vt` cookie for voter identity
+- **Base URL**: `https://the-all-thing-backend.fly.dev` (configured via `NEXT_PUBLIC_API_URL`)
+- **Client**: `/lib/api.ts` with functions:
+  - `getTodayPolls()` - Fetches all polls for today
+  - `submitVote(instanceId, rankings, turnstileToken)` - Submit vote with CAPTCHA
+  - `getPollHistory(templateId)` - Fetch historical results for a poll
+- **Cookie handling**: Browser automatically manages `vt` cookie for voter identity
+- **Error handling**: API errors displayed in UI with user-friendly messages
 
-### Voter Experience
-- **First visit**: API sets signed cookie (`vt`) automatically
-- **Voting**: One vote per poll (enforced server-side)
-- **Duplicate prevention**: 409 error if already voted
-- **Rankings**: For RANKED polls, submit array of optionIds in preference order
+### Voter Experience Flow
+1. **First visit**: API sets signed cookie (`vt`) automatically on first vote
+2. **Voting**: 
+   - Complete Turnstile CAPTCHA challenge
+   - Select option (SINGLE) or rank options (RANKED)
+   - Submit vote
+3. **Duplicate prevention**: 409 error if already voted (stored in localStorage + cookie check)
+4. **Results**: After voting, poll card shows results with percentages and bars
+5. **Rankings**: For RANKED polls, submit array of optionIds in preference order
+
+### TypeScript Types
+Located in `/lib/types.ts`:
+- `Poll` - Individual poll instance
+- `PollCategory` - Category with polls and subcategories
+- `PollOption` - Poll option/choice
+- `PollResult` - Historical result snapshot
+- `IRVRound` - Ranked-choice voting round data
+
+### Development Patterns
+
+#### State Management
+- Use `useState` for local component state
+- Use `useMemo` for derived/computed values (prevents cascading renders)
+- Use `useEffect` for side effects (API calls, localStorage)
+- Avoid `useEffect` with setState for search/filtering (use `useMemo` instead)
+
+#### Preventing Cascading Renders
+- ❌ Don't: `useEffect(() => setResults(search()), [query])`
+- ✅ Do: `const results = useMemo(() => search(), [query])`
+
+#### Featured Polls Pattern
+Extract featured polls while preserving original category structure:
+```typescript
+function extractFeaturedPolls(categories: PollCategory[]): PollCategory[] {
+  const result: PollCategory[] = [];
+  for (const cat of categories) {
+    const featuredInCategory = cat.polls.filter(p => p.isFeatured);
+    if (featuredInCategory.length > 0) {
+      result.push({
+        ...cat,
+        polls: featuredInCategory,
+        subCategories: []
+      });
+    }
+  }
+  return result;
+}
+```
+
+### Common UI Patterns
+
+#### Always-Expanded Cards
+Poll cards no longer have collapse functionality - they always show full content:
+- Removed `isExpanded` state
+- Removed toggle button
+- Simplified component structure
+
+#### Gradient Headers
+```tsx
+<h2 className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-blue-600">
+  {title}
+</h2>
+```
+
+#### Hover Effects
+```tsx
+<button className="border-2 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20">
+  {label}
+</button>
+```

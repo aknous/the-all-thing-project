@@ -1,4 +1,4 @@
-import { PollCategory } from '@/app/lib/types';
+import { PollCategory } from '@/lib/types';
 import PollCard from './PollCard';
 
 interface PollListProps {
@@ -40,10 +40,12 @@ function CategorySection({
     : "text-xl font-semibold mb-3 ml-4";
   
   return (
-    <div className={depth > 0 ? "ml-4 mt-6" : ""}>
-      <h2 className={`${headingClass} text-zinc-900 dark:text-zinc-100`}>
-        {category.categoryName}
-      </h2>
+    <div id={category.categoryKey} className={depth > 0 ? "ml-4 mt-6" : "mt-6 scroll-mt-20"}>
+      <div className="mb-4 pb-3 border-b-2 border-zinc-500/50">
+        <h2 className={`${headingClass} dark:text-white text-black  bg-clip-text`}>
+          {category.categoryName}
+        </h2>
+      </div>
       
       {/* Polls in this category */}
       {hasPolls && (

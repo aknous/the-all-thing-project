@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminFetch } from '@/app/lib/adminAuth';
-import { getEasternToday } from '@/app/lib/dateUtils';
+import { adminFetch } from '@/lib/adminAuth';
+import { getEasternToday } from '@/lib/dateUtils';
 import Link from 'next/link';
 
 interface Instance {

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getPollHistory } from '@/app/lib/api';
-import { PollResult } from '@/app/lib/types';
+import { getPollHistory } from '@/lib/api';
+import { PollResult } from '@/lib/types';
 
 interface PollHistorySidebarProps {
   templateId: string;

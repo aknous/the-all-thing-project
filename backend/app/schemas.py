@@ -24,6 +24,7 @@ class ImportTemplateInput(BaseModel):
     audience: str = Field(default="PUBLIC", pattern="^(PUBLIC|USER_ONLY)$")
     durationDays: int = Field(default=1, ge=1, le=30)
     isActive: bool = Field(default=True)
+    featured: bool = Field(default=False)
     options: list[ImportOptionInput] = Field(min_length=2)
 
 class ImportCategoryInput(BaseModel):

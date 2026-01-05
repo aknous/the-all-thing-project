@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getTodayPolls } from '@/app/lib/api';
-import { PollCategory } from '@/app/lib/types';
-import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
+import { getTodayPolls } from '@/lib/api';
+import { PollCategory } from '@/lib/types';
+import { PublicLayout } from '@/components/PublicLayout';
 import PollList from '@/components/PollList';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
@@ -58,9 +57,9 @@ export default function CategoryPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading polls...</p>
         </div>
       </div>
@@ -69,7 +68,7 @@ export default function CategoryPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400">Failed to load polls</p>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{error}</p>
@@ -82,20 +81,16 @@ export default function CategoryPage() {
 
   if (!selectedCategory) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-        <Header />
-        <div className="flex">
-          <Sidebar categories={categories} />
-          <main className="flex-1 p-8">
-            <p className="text-zinc-600 dark:text-zinc-400">Category not found</p>
-          </main>
+      <PublicLayout categories={categories}>
+        <div className="max-w-4xl">
+          <p className="text-zinc-600 dark:text-zinc-400">Category not found</p>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   // Build breadcrumb trail
-  const breadcrumbItems = [{ label: 'All Polls', href: '/polls' }];
+  const breadcrumbItems: Array<{ label: string; href?: string }> = [{ label: 'All Polls', href: '/polls' }];
   
   // If this is a subcategory, add parent to breadcrumbs
   if (selectedCategory.parentCategoryId) {
@@ -108,23 +103,17 @@ export default function CategoryPage() {
     }
   }
   
-  // Add current category
+  // Add current category (no href for current page)
   breadcrumbItems.push({ label: selectedCategory.categoryName });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Header />
-      <div className="flex">
-        <Sidebar categories={categories} />
-        <main className="flex-1 px-6 py-8">
-          <div className="max-w-3xl mx-auto">
-          <Breadcrumbs items={breadcrumbItems} />
-          <PollList 
-            categories={[selectedCategory]}
-          />
-          </div>
-        </main>
+    <PublicLayout categories={categories}>
+      <div className="max-w-4xl">
+        <Breadcrumbs items={breadcrumbItems} />
+        <PollList 
+          categories={[selectedCategory]}
+        />
       </div>
-    </div>
+    </PublicLayout>
   );
 }

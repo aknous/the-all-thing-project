@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { adminFetch } from '@/app/lib/adminAuth';
+import { adminFetch } from '@/lib/adminAuth';
 
 interface ImportResultItem {
   type: string;

@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { setAdminKey } from '@/app/lib/adminAuth';
+import { setAdminKey } from '@/lib/adminAuth';
 
 export default function AdminLogin() {
   const [key, setKey] = useState('');

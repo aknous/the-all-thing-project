@@ -351,39 +351,43 @@ async def getTemplateHistory(
                 winner_option_id = result_data.get('winnerOptionId')
                 rank_breakdown = result_data.get('rankBreakdown', {})
                 
-                # Get the final round to show vote distribution
+                # Get ALL options from the snapshot (not just final round)
+                all_options = result_data.get('options', [])
+                
+                # Get the final round to show final vote counts
+                final_totals = {}
                 if rounds:
                     final_round = rounds[-1]
-                    totals = final_round.get('totals', {})
+                    final_totals = final_round.get('totals', {})
+                
+                # Build options breakdown for ALL options
+                for opt in all_options:
+                    option_id = opt['optionId']
+                    count = final_totals.get(option_id, 0)
+                    percentage = (count / total_votes * 100) if total_votes > 0 else 0
                     
-                    # Get option labels from options array
-                    option_labels = {opt['optionId']: opt['label'] for opt in result_data.get('options', [])}
+                    # Get rank breakdown for this option
+                    option_rank_breakdown = rank_breakdown.get(option_id, {})
                     
-                    for option_id, count in totals.items():
-                        percentage = (count / total_votes * 100) if total_votes > 0 else 0
-                        
-                        # Get rank breakdown for this option
-                        option_rank_breakdown = rank_breakdown.get(option_id, {})
-                        
-                        options_breakdown.append({
-                            'optionId': option_id,
-                            'label': option_labels.get(option_id, ''),
-                            'voteCount': count,
-                            'percentage': round(percentage, 1),
-                            'isWinner': option_id == winner_option_id,
-                            'rankBreakdown': option_rank_breakdown,
-                        })
-                    
-                    # Sort by vote count descending
-                    options_breakdown.sort(key=lambda x: x['voteCount'], reverse=True)
-                    
-                    # Set winner
-                    if winner_option_id:
-                        winner_data = next((opt for opt in options_breakdown if opt['optionId'] == winner_option_id), None)
-                        if winner_data:
-                            winner = winner_data
+                    options_breakdown.append({
+                        'optionId': option_id,
+                        'label': opt.get('label', ''),
+                        'voteCount': count,
+                        'percentage': round(percentage, 1),
+                        'isWinner': option_id == winner_option_id,
+                        'rankBreakdown': option_rank_breakdown,
+                    })
+                
+                # Sort by vote count descending
+                options_breakdown.sort(key=lambda x: x['voteCount'], reverse=True)
+                
+                # Set winner
+                if winner_option_id:
+                    winner_data = next((opt for opt in options_breakdown if opt['optionId'] == winner_option_id), None)
+                    if winner_data:
+                        winner = winner_data
             
-            results.append({
+            poll_result = {
                 'pollId': instance.id,
                 'pollDate': str(instance.pollDate),
                 'title': instance.title,
@@ -391,7 +395,14 @@ async def getTemplateHistory(
                 'winner': winner,
                 'options': options_breakdown,
                 'totalVotes': total_votes,
-            })
+            }
+            
+            # Include rounds data and totalBallots for ranked choice polls
+            if poll_type == 'RANKED':
+                poll_result['rounds'] = result_data.get('rounds', [])
+                poll_result['totalBallots'] = result_data.get('totalBallots', total_votes)
+            
+            results.append(poll_result)
     
     return {"data": results}
 

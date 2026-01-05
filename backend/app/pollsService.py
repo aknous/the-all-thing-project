@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import PollCategory, PollInstance
+from .models import PollCategory, PollInstance, PollResultSnapshot
 
 
 async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
@@ -38,6 +38,18 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
         .order_by(PollInstance.categoryId, PollInstance.templateId)
     )).scalars().all()
 
+    # Check which templates have historical snapshots
+    templateIds = [inst.templateId for inst in instances if inst.templateId]
+    templatesWithHistory = set()
+    if templateIds:
+        snapshotResult = await db.execute(
+            select(PollInstance.templateId)
+            .join(PollResultSnapshot, PollInstance.id == PollResultSnapshot.instanceId)
+            .where(PollInstance.templateId.in_(templateIds))
+            .distinct()
+        )
+        templatesWithHistory = {row[0] for row in snapshotResult}
+
     instancesByCategoryId: dict[str, list[PollInstance]] = {}
     for inst in instances:
         instancesByCategoryId.setdefault(inst.categoryId, []).append(inst)
@@ -49,6 +61,7 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
         polls = []
         for inst in catInstances:
             options = sorted(inst.options or [], key=lambda o: o.sortOrder)
+            isNew = inst.templateId and inst.templateId not in templatesWithHistory
             polls.append({
                 "pollId": inst.id,
                 "templateId": inst.templateId,
@@ -61,6 +74,8 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
                 "maxRank": inst.maxRank,
                 "audience": inst.audience,
                 "status": inst.status,
+                "featured": inst.template.featured if inst.template else False,
+                "isNew": isNew,
                 "options": [
                     {"optionId": o.id, "label": o.label, "sortOrder": o.sortOrder}
                     for o in options

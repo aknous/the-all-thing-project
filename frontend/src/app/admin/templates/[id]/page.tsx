@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { adminFetch } from '@/app/lib/adminAuth';
+import { adminFetch } from '@/lib/adminAuth';
 
 interface Category {
   id: string;
@@ -36,6 +36,7 @@ interface Template {
   audience: string;
   durationDays: number;
   isActive: boolean;
+  featured: boolean;
   options: Array<{
     id: string;
     label: string;
@@ -63,6 +64,7 @@ export default function EditTemplatePage() {
     audience: 'PUBLIC',
     durationDays: '1',
     isActive: true,
+    featured: false,
   });
 
   const [options, setOptions] = useState<OptionInput[]>([]);
@@ -93,6 +95,7 @@ export default function EditTemplatePage() {
         audience: t.audience,
         durationDays: t.durationDays.toString(),
         isActive: t.isActive,
+        featured: t.featured,
       });
 
       setOptions(t.options.map((opt: { id: string; label: string; sortOrder: number }) => ({
@@ -161,6 +164,7 @@ export default function EditTemplatePage() {
         audience: formData.audience,
         durationDays: parseInt(formData.durationDays),
         isActive: formData.isActive,
+        featured: formData.featured,
       };
 
       await adminFetch(`${API_URL}/admin/templates/${templateId}`, {
@@ -350,6 +354,19 @@ export default function EditTemplatePage() {
             />
             <label htmlFor="isActive" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Active (creates daily instances)
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="featured"
+              checked={formData.featured}
+              onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+              className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700"
+            />
+            <label htmlFor="featured" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Featured (show in sidebar)
             </label>
           </div>
         </div>

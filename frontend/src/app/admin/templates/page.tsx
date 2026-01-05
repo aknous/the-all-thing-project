@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminFetch } from '@/app/lib/adminAuth';
+import { adminFetch } from '@/lib/adminAuth';
 import Link from 'next/link';
 
 interface Template {

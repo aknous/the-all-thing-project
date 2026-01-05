@@ -18,6 +18,8 @@ export interface Poll {
   maxRank: number | null;
   audience: string;
   status: "OPEN" | "CLOSED";
+  featured: boolean;
+  isNew: boolean;
   options: PollOption[];
 }
 
@@ -62,4 +64,11 @@ export interface PollResult {
     rankBreakdown?: { [rank: number]: number };
   }[];
   totalVotes: number;
+  totalBallots?: number;
+  rounds?: {
+    round: number;
+    totals: { [optionId: string]: number };
+    eliminated: string | null;
+    exhausted: number;
+  }[];
 }

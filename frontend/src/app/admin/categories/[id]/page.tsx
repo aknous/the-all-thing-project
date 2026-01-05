@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { adminFetch } from '@/app/lib/adminAuth';
+import { adminFetch } from '@/lib/adminAuth';
 
 interface Category {
   id: string;

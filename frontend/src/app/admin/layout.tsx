@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { isAuthenticated, clearAdminKey } from '@/app/lib/adminAuth';
+import { isAuthenticated, clearAdminKey } from '@/lib/adminAuth';
 
 export default function AdminLayout({
   children,

@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Poll, PollCategory } from '@/app/lib/types';
-import { submitVote } from '@/app/lib/api';
+import { Poll, PollCategory } from '@/lib/types';
+import { submitVote } from '@/lib/api';
 import { Turnstile } from '@marsidev/react-turnstile';
 
 interface PollCardProps {
   poll: Poll;
   category: PollCategory;
   allCategories: PollCategory[];
-  alwaysExpanded?: boolean;
+  hideHistoryLink?: boolean;
 }
 
 interface SavedVote {
@@ -36,7 +36,7 @@ function findParentCategory(categories: PollCategory[], childId: string): PollCa
   return null;
 }
 
-export default function PollCard({ poll, category, allCategories, alwaysExpanded = false }: PollCardProps) {
+export default function PollCard({ poll, category, allCategories, hideHistoryLink = false }: PollCardProps) {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,6 @@ export default function PollCard({ poll, category, allCategories, alwaysExpanded
   const [previousVote, setPreviousVote] = useState<string[] | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(alwaysExpanded);
 
   // Calculate time remaining
   useEffect(() => {
@@ -175,37 +174,39 @@ export default function PollCard({ poll, category, allCategories, alwaysExpanded
     const pollUrl = `/polls/${category.categoryKey}/${poll.templateKey}`;
 
     return (
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        {/* Collapsed Header */}
-        {!alwaysExpanded ? (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full p-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <Link
-                    href={pollUrl}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                  >
-                    {poll.title}
-                  </Link>
-                  {poll.pollType === 'RANKED' && (
-                    <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
-                      RANKED CHOICE
-                    </span>
-                  )}
-                </div>
-                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                  {timeRemaining}
-                </span>
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-1">
+                <Link
+                  href={pollUrl}
+                  className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-indigo-600 hover:to-pink-600 dark:hover:from-indigo-400 dark:hover:to-pink-400 transition-all duration-200"
+                >
+                  {poll.title}
+                </Link>
+                {poll.pollType === 'RANKED' && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                    RANKED CHOICE
+                  </span>
+                )}
               </div>
+              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                {timeRemaining}
+              </span>
+            </div>
+          </div>
+
+          {poll.question && (
+            <p className="text-zinc-600 dark:text-zinc-400 mb-4 mt-4">
+              {poll.question}
+            </p>
+          )}
+
+          <div className="bg-emerald-100 dark:bg-emerald-900/20 border border-emerald-500 rounded-lg p-6 mb-4">
+            <div className="flex items-start gap-3">
               <svg
-                className={`w-5 h-5 text-zinc-500 dark:text-zinc-400 transition-transform shrink-0 ml-4 ${
-                  isExpanded ? 'rotate-180' : ''
-                }`}
+                className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -214,195 +215,101 @@ export default function PollCard({ poll, category, allCategories, alwaysExpanded
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-            </div>
-          </button>
-        ) : (
-          <div className="p-6">
-            <div className="flex items-start justify-between mb-2">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                    {poll.title}
-                  </h3>
-                  {poll.pollType === 'RANKED' && (
-                    <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
-                      RANKED CHOICE
-                    </span>
-                  )}
-                </div>
-                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                  {timeRemaining}
-                </span>
+                <h4 className="font-semibold text-emerald-900 dark:text-emerald-100 mb-2">
+                  Your Vote
+                </h4>
+                {poll.pollType === 'RANKED' ? (
+                  <ol className="list-decimal list-inside space-y-1">
+                    {votedOptions.map((option) => option && (
+                      <li key={option.optionId} className="text-emerald-800 dark:text-emerald-200">
+                        {option.label}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-emerald-800 dark:text-emerald-200">
+                    {votedOptions[0]?.label}
+                  </p>
+                )}
               </div>
             </div>
           </div>
-        )}
 
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className={alwaysExpanded ? "px-6 pb-6" : "px-6 pb-6 border-t border-zinc-200 dark:border-zinc-800"}>
-            {poll.question && (
-              <p className="text-zinc-600 dark:text-zinc-400 mb-4 mt-4">
-                {poll.question}
-              </p>
-            )}
-
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 mb-4">
-              <div className="flex items-start gap-3">
-                <svg
-                  className="w-6 h-6 text-green-500 shrink-0 mt-0.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">
-                    Your Vote
-                  </h4>
-                  {poll.pollType === 'RANKED' ? (
-                    <ol className="list-decimal list-inside space-y-1">
-                      {votedOptions.map((option) => option && (
-                        <li key={option.optionId} className="text-green-800 dark:text-green-200">
-                          {option.label}
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="text-green-800 dark:text-green-200">
-                      {votedOptions[0]?.label}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {alwaysExpanded ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center">
+          {!hideHistoryLink && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 You&apos;ve already voted on this poll
               </p>
-            ) : (
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  You&apos;ve already voted on this poll
-                </p>
-                <Link
-                  href={pollUrl}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  View Results →
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
+              <Link
+                href={pollUrl}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View History →
+              </Link>
+            </div>
+          )}
+          {hideHistoryLink && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              You&apos;ve already voted on this poll
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-      {/* Collapsed Header */}
-      {!alwaysExpanded ? (
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full p-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
-                <Link
-                  href={`/polls/${category.categoryKey}/${poll.templateKey}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                >
-                  {poll.title}
-                </Link>
-                {poll.pollType === 'RANKED' && (
-                  <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
-                    RANKED CHOICE
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                {timeRemaining}
-              </span>
-            </div>
-            <svg
-              className={`w-5 h-5 text-zinc-500 dark:text-zinc-400 transition-transform shrink-0 ml-4 ${
-                isExpanded ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div className="bg-gradient-to-br from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-800/50 rounded-lg shadow-md border-l-4 border-blue-500 dark:border-blue-600 overflow-hidden ring-1 ring-zinc-200 dark:ring-zinc-800">
+      <div className="p-4 sm:p-6">
+        <div className="mb-4">
+          <div className="mb-2">
+            <Link
+              href={`/polls/${category.categoryKey}/${poll.templateKey}`}
+              className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-blue-600 hover:via-indigo-600 hover:to-rose-600 dark:hover:from-blue-400 dark:hover:via-indigo-400 dark:hover:to-rose-400 transition-all duration-200"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+              {poll.title}
+            </Link>
           </div>
-        </button>
-      ) : (
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
-                <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                  {poll.title}
-                </h3>
-                {poll.pollType === 'RANKED' && (
-                  <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
-                    RANKED CHOICE
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                {timeRemaining}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              {timeRemaining}
+            </span>
+            {poll.pollType === 'RANKED' && (
+              <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                Ranked Choice
               </span>
-            </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className={alwaysExpanded ? "px-6 pb-6" : "px-6 pb-6 border-t border-zinc-200 dark:border-zinc-800"}>
-          {poll.question && (
-            <p className="text-zinc-600 dark:text-zinc-400 mb-4 mt-4">
-              {poll.question}
-            </p>
-          )}
+        {poll.question && (
+          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 mb-6">
+            {poll.question}
+          </p>
+        )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-3 mb-4">
-              {poll.pollType === 'SINGLE' ? (
-                // Single choice (radio buttons)
-                poll.options.map((option) => (
-                  <label
-                    key={option.optionId}
-                    className="flex items-center p-3 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="radio"
-                      name={`poll-${poll.pollId}`}
-                      value={option.optionId}
-                      checked={selectedOptions[0] === option.optionId}
-                      onChange={() => handleSingleChoice(option.optionId)}
-                      className="w-4 h-4 text-blue-600 mr-3"
-                    />
-                    <span className="text-zinc-900 dark:text-zinc-100">
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-2.5 sm:space-y-3 mb-6">
+            {poll.pollType === 'SINGLE' ? (
+              // Single choice (radio buttons)
+              poll.options.map((option) => (
+                <label
+                  key={option.optionId}
+                  className="flex items-center p-3.5 sm:p-3 rounded-lg border-2 border-zinc-300 dark:border-zinc-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all"
+                >
+                  <input
+                    type="radio"
+                    name={`poll-${poll.pollId}`}
+                    value={option.optionId}
+                    checked={selectedOptions[0] === option.optionId}
+                    onChange={() => handleSingleChoice(option.optionId)}
+                    className="w-4 h-4 text-sky-600 mr-3 shrink-0"
+                  />
+                    <span className="text-sm sm:text-base text-zinc-900 dark:text-zinc-100">
                       {option.label}
                     </span>
                   </label>
@@ -475,7 +382,6 @@ export default function PollCard({ poll, category, allCategories, alwaysExpanded
             </button>
           </form>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
 }

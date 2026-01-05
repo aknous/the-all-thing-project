@@ -100,6 +100,7 @@ class PollTemplate(Base):
     durationDays: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # How many days poll stays open
 
     isActive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     category: Mapped["PollCategory"] = relationship(back_populates="templates")
 
