@@ -42,3 +42,14 @@ export async function getPollHistory(templateId: string): Promise<PollResult[]> 
   const json = await res.json();
   return json.data || [];
 }
+
+export async function getCurrentResults(pollId: string) {
+  const res = await fetch(`${API_URL}/polls/${pollId}/results`, {
+    credentials: 'include',
+  });
+  
+  if (!res.ok) throw new Error('Failed to fetch current results');
+  
+  const json = await res.json();
+  return json.data;
+}

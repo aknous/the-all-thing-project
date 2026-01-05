@@ -157,6 +157,11 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
       localStorage.setItem('poll_votes', JSON.stringify(filteredVotes));
       setPreviousVote(selectedOptions);
       setSuccess(true);
+      
+      // Dispatch event for detail page to listen to
+      window.dispatchEvent(new CustomEvent('pollVoted', { 
+        detail: { pollId: poll.pollId } 
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit vote');
     } finally {
@@ -173,6 +178,77 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
     const parentCategory = findParentCategory(allCategories, category.categoryId);
     const pollUrl = `/polls/${category.categoryKey}/${poll.templateKey}`;
 
+    // On detail page (hideHistoryLink=true), show minimal voted state
+    // Results will be displayed in CurrentResults component below
+    if (hideHistoryLink) {
+      return (
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+              <div className="flex-1">
+                <h2 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                  {poll.title}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  {timeRemaining}
+                </span>
+                {poll.pollType === 'RANKED' && (
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                    RANKED CHOICE
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {poll.question && (
+              <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 mb-4">
+                {poll.question}
+              </p>
+            )}
+
+            <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-emerald-900 dark:text-emerald-100 mb-2 text-sm">
+                    Your Vote
+                  </h4>
+                  {poll.pollType === 'RANKED' ? (
+                    <ol className="list-decimal list-inside space-y-1">
+                      {votedOptions.map((option) => option && (
+                        <li key={option.optionId} className="text-emerald-800 dark:text-emerald-200 text-sm">
+                          {option.label}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="text-emerald-800 dark:text-emerald-200 text-sm">
+                      {votedOptions[0]?.label}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // On list page, show full voted state with link to history
     return (
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
         <div className="p-6">
@@ -239,24 +315,17 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
             </div>
           </div>
 
-          {!hideHistoryLink && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                You&apos;ve already voted on this poll
-              </p>
-              <Link
-                href={pollUrl}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                View History →
-              </Link>
-            </div>
-          )}
-          {hideHistoryLink && (
+          <div className="flex items-center justify-between">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               You&apos;ve already voted on this poll
             </p>
-          )}
+            <Link
+              href={pollUrl}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              View Results →
+            </Link>
+          </div>
         </div>
       </div>
     );
