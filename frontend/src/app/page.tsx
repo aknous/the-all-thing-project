@@ -168,9 +168,6 @@ export default function Home() {
               <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600">
                 Featured Polls
               </h2>
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Today's highlighted polls across different topics
-              </p>
             </div>
             
             <div className="space-y-6">
@@ -193,9 +190,6 @@ export default function Home() {
               <h2 className="text-3xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600">
                 New Polls
               </h2>
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Recently added polls - be among the first to vote!
-              </p>
             </div>
             
             <div className="space-y-6">
