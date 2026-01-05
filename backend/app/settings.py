@@ -1,5 +1,6 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -19,12 +20,14 @@ class Settings(BaseSettings):
 
     # CORS settings (comma-separated list of allowed origins)
     # Default includes localhost for development
-    corsOrigins: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://localhost:3000",
-        "https://localhost:5173",
-    ]
+    corsOrigins: str | list[str] = "http://localhost:3000,http://localhost:5173,https://localhost:3000,https://localhost:5173"
+
+    @field_validator('corsOrigins', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',')]
+        return v
 
     @property
     def async_database_url(self) -> str:

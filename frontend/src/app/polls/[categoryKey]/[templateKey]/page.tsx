@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { getTodayPolls, getPollHistory } from '@/lib/api';
-import { Poll, PollCategory, PollResult } from '@/lib/types';
+import { getTodayPolls, getPollHistory, getCurrentResults } from '@/lib/api';
+import { Poll, PollCategory, PollResult, CurrentPollResults } from '@/lib/types';
 import { PublicLayout } from '@/components/PublicLayout';
 import PollCard from '@/components/PollCard';
 import { IRVRoundsVisualization } from '@/components/IRVRoundsVisualization';
+import CurrentResults from '@/components/CurrentResults';
 
 // Helper to find category by key
 function findCategoryByKey(categories: PollCategory[], key: string): PollCategory | null {
@@ -41,9 +42,11 @@ export default function PollDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PollResult[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
   const [expandedPolls, setExpandedPolls] = useState<Set<string>>(new Set());
+  const [currentResults, setCurrentResults] = useState<CurrentPollResults | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [voteTimestamp, setVoteTimestamp] = useState<number>(0); // Trigger for checking vote status
 
   useEffect(() => {
     getTodayPolls()
@@ -59,6 +62,21 @@ export default function PollDetailPage() {
   const allPolls = getAllPolls(categories);
   const currentPoll = allPolls.find(p => p.templateKey === templateKey);
   const category = findCategoryByKey(categories, categoryKey);
+
+  // Derive hasVoted from localStorage without setState in effect
+  const hasVoted = useMemo(() => {
+    if (!currentPoll) return false;
+    // Check poll_votes array in localStorage (same format as PollCard)
+    const savedVotesStr = localStorage.getItem('poll_votes');
+    if (!savedVotesStr) return false;
+    try {
+      const savedVotes = JSON.parse(savedVotesStr);
+      return savedVotes.some((v: any) => v.pollId === currentPoll.pollId);
+    } catch {
+      return false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPoll, voteTimestamp]);
 
   const togglePoll = (pollId: string) => {
     setExpandedPolls(prev => {
@@ -93,6 +111,60 @@ export default function PollDetailPage() {
       return () => { cancelled = true; };
     }
   }, [currentPoll, loadedTemplateId]);
+
+  // Load current results when user has voted
+  useEffect(() => {
+    if (!currentPoll || !hasVoted || currentPoll.status !== 'OPEN') {
+      return;
+    }
+    
+    let cancelled = false;
+    
+    // Set loading state in async function to avoid cascading renders
+    const loadResults = async () => {
+      setResultsLoading(true);
+      try {
+        const data = await getCurrentResults(currentPoll.pollId);
+        if (!cancelled) {
+          setCurrentResults(data);
+        }
+      } catch (err) {
+        console.error('Failed to load current results:', err);
+      } finally {
+        if (!cancelled) {
+          setResultsLoading(false);
+        }
+      }
+    };
+    
+    loadResults();
+    return () => { cancelled = true; };
+  }, [currentPoll, hasVoted]);
+
+  // Listen for vote events from PollCard
+  useEffect(() => {
+    const handleVote = (event: Event) => {
+      const customEvent = event as CustomEvent<{ pollId: string }>;
+      if (currentPoll && customEvent.detail.pollId === currentPoll.pollId) {
+        setVoteTimestamp(Date.now()); // Trigger hasVoted recomputation
+        setResultsLoading(true);
+        
+        getCurrentResults(currentPoll.pollId)
+          .then((data) => {
+            setCurrentResults(data);
+          })
+          .catch((err) => {
+            console.error('Failed to load current results:', err);
+          })
+          .finally(() => {
+            setResultsLoading(false);
+          });
+      }
+    };
+    
+    window.addEventListener('pollVoted', handleVote);
+    return () => window.removeEventListener('pollVoted', handleVote);
+  }, [currentPoll]);
 
   if (loading) {
     return (
@@ -137,6 +209,28 @@ export default function PollDetailPage() {
             hideHistoryLink={true}
           />
         </div>
+
+        {/* Current Results - Only show on detail page after voting */}
+        {hasVoted && currentPoll.status === 'OPEN' && (
+          <div className="mb-12">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+              {resultsLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                </div>
+              ) : currentResults ? (
+                <CurrentResults 
+                  pollType={currentPoll.pollType}
+                  results={currentResults}
+                />
+              ) : (
+                <div className="text-zinc-500 dark:text-zinc-400">
+                  Unable to load current results
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Historical Results */}
         <div className="mt-12">
@@ -216,7 +310,7 @@ export default function PollDetailPage() {
                             </div>
                             <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
                               <div
-                                className="bg-green-500 dark:bg-green-600 h-2 rounded-full"
+                                className="bg-linear-to-r from-emerald-600 to-blue-600 h-2 rounded-full"
                                 style={{ width: `${result.winner.percentage}%` }}
                               />
                             </div>
@@ -267,11 +361,7 @@ export default function PollDetailPage() {
                                       </div>
                                       <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
                                         <div
-                                          className={`h-2 rounded-full transition-all ${
-                                            isWinner 
-                                              ? 'bg-green-500 dark:bg-green-600' 
-                                              : 'bg-blue-500 dark:bg-blue-600'
-                                          }`}
+                                          className="bg-linear-to-r from-emerald-600 to-blue-600 h-2 rounded-full transition-all"
                                           style={{ width: `${percentage}%` }}
                                         />
                                       </div>

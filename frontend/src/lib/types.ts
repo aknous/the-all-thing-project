@@ -72,3 +72,39 @@ export interface PollResult {
     exhausted: number;
   }[];
 }
+
+export interface CurrentPollResults {
+  found: boolean;
+  pollId: string;
+  pollDate?: string;
+  title?: string;
+  question?: string | null;
+  pollType?: PollType;
+  maxRank?: number | null;
+  audience?: string;
+  status?: "OPEN" | "CLOSED";
+  options?: {
+    optionId: string;
+    label: string;
+    sortOrder: number;
+  }[];
+  totalVotes?: number;
+  results?: {
+    optionId: string;
+    label: string;
+    count: number;
+  }[];
+  totalBallots?: number;
+  winnerOptionId?: string | null;
+  rounds?: {
+    round: number;
+    totals: { [optionId: string]: number };
+    eliminated: string | null;
+    exhausted: number;
+  }[];
+  rankBreakdown?: {
+    [optionId: string]: {
+      [rank: number]: number;
+    };
+  };
+}
