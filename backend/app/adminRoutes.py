@@ -461,7 +461,7 @@ async def generateTemplateContext(
             action="generate_poll_context",
             entityType="template",
             entityId=templateId,
-            adminKeyHash=admin.keyHash,
+            adminKeyHash=admin.adminKeyHash,
             ipAddress=admin.ipAddress,
             userAgent=admin.userAgent,
             extraData={"title": template.title}
