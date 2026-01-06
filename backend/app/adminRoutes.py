@@ -464,12 +464,17 @@ async def generateTemplateContext(
             resourceId=templateId,
             details={"title": template.title}
         )
+        await db.commit()
         
         return {"ok": True, "contextText": contextText}
         
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate context: {str(e)}")
 
 @router.patch("/templates/{templateId}/active")
