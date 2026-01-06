@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     
     # Cloudflare Turnstile (optional, for bot protection)
     turnstileSecretKey: str | None = None
+    
+    # OpenAI API (optional, for AI-generated poll context)
+    openaiApiKey: str | None = None
 
     # Optional cookie settings
     cookieDomain: str | None = None

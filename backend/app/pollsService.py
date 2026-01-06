@@ -70,6 +70,7 @@ async def buildPollsForDate(db: AsyncSession, pollDate: date) -> dict[str, Any]:
                 "closeDate": str(inst.closeDate),
                 "title": inst.title,
                 "question": inst.question,
+                "contextText": inst.template.contextText if inst.template else None,
                 "pollType": inst.pollType,
                 "maxRank": inst.maxRank,
                 "audience": inst.audience,
