@@ -86,10 +86,10 @@ function PollsPageContent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading polls...</p>
+          <p className="mt-4 text-midnight-600 dark:text-midnight-400">Loading polls...</p>
         </div>
       </div>
     );
@@ -97,10 +97,10 @@ function PollsPageContent() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400">Failed to load polls</p>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{error}</p>
+          <p className="mt-2 text-sm text-midnight-600 dark:text-midnight-400">{error}</p>
         </div>
       </div>
     );
@@ -163,14 +163,14 @@ function PollsPageContent() {
       visibleSections={visibleSections}
     >
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2 text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-3xl font-bold mb-2 text-midnight-950 dark:text-midnight-100">
           {effectiveCategory === 'featured' ? 'Featured Polls' : selectedCategoryData ? selectedCategoryData.categoryName : "Today's Polls"}
         </h1>
 
         
         {displayCategories.length === 0 || displayCategories.every(cat => cat.polls.length === 0) ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <p className="text-zinc-600 dark:text-zinc-400">
+          <div className="text-center py-12 bg-midnight-50 dark:bg-midnight-800/50 rounded-lg border border-midnight-200 dark:border-midnight-700">
+            <p className="text-midnight-600 dark:text-midnight-400">
               No polls available {selectedCategoryData ? 'in this category' : 'today'}.
             </p>
           </div>
@@ -185,10 +185,10 @@ function PollsPageContent() {
 export default function PollsPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950/20">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-midnight-950 dark:via-midnight-950 dark:to-indigo-950/20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading...</p>
+          <p className="mt-4 text-midnight-600 dark:text-midnight-400">Loading...</p>
         </div>
       </div>
     }>

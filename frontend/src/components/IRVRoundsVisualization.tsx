@@ -20,7 +20,7 @@ interface IRVRoundsVisualizationProps {
 export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots }: IRVRoundsVisualizationProps) {
   if (!rounds || rounds.length === 0) {
     return (
-      <div className="text-sm text-zinc-500 dark:text-zinc-400">
+      <div className="text-sm text-midnight-500 dark:text-midnight-100">
         No round data available
       </div>
     );
@@ -61,7 +61,7 @@ export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots
         {rounds.map((round, index) => (
           <div key={round.round} className="flex items-center gap-1.5">
             <div className={`w-3 h-3 rounded ${roundColors[index % roundColors.length]}`} />
-            <span className="text-zinc-600 dark:text-zinc-400">
+            <span className="text-midnight-600 dark:text-midnight-100">
               Round {round.round}
             </span>
           </div>
@@ -95,11 +95,11 @@ export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots
                 <span className={`font-medium ${
                   isWinner 
                     ? 'text-green-600 dark:text-green-400' 
-                    : 'text-zinc-900 dark:text-zinc-100'
+                    : 'text-midnight-950 dark:text-midnight-100'
                 }`}>
                   {isWinner && '🏆 '}{option.label}
                 </span>
-                <span className="text-zinc-600 dark:text-zinc-400 text-xs">
+                <span className="text-midnight-600 dark:text-midnight-100 text-xs">
                   {wasEliminated 
                     ? `Eliminated in Round ${eliminatedRound + 1}`
                     : `${finalVotes} votes (${finalPercentage}%)`
@@ -108,7 +108,7 @@ export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots
               </div>
               
               {/* Container for the bar */}
-              <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-3 relative overflow-hidden">
+              <div className="w-full bg-midnight-200 dark:bg-midnight-700 rounded-full h-3 relative overflow-hidden">
                 {/* Single stacked bar showing incremental votes per round */}
                 {incrementalVotes.map((votes, roundIndex) => {
                   if (votes === 0) return null;
@@ -131,7 +131,7 @@ export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots
                       }}
                     >
                       {/* Tooltip on hover */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 dark:bg-zinc-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-midnight-950 dark:bg-midnight-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                         Round {roundIndex + 1}: {votes > 0 && roundIndex > 0 ? '+' : ''}{votes} votes
                       </div>
                     </div>
@@ -145,12 +145,12 @@ export function IRVRoundsVisualization({ rounds, options, winnerId, totalBallots
 
       {/* Exhausted ballots summary */}
       {rounds.some(r => r.exhausted > 0) && (
-        <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700 space-y-1.5">
+        <div className="pt-3 border-t border-midnight-200 dark:border-midnight-700 space-y-1.5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="text-midnight-500 dark:text-midnight-100">
               Inactive Ballots
             </span>
-            <span className="text-zinc-600 dark:text-zinc-400">
+            <span className="text-midnight-600 dark:text-midnight-100">
               {rounds[rounds.length - 1].exhausted}
             </span>
           </div>

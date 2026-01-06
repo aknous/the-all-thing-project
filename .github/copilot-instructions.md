@@ -18,6 +18,96 @@ Daily rollover creates instances from templates, applying plan overrides if pres
 - Duplicate vote prevention: database unique constraint on `(instanceId, voterTokenHash)` in `voteBallots` table
 - IP-based rate limiting via Redis with graceful degradation (see [app/abuse.py](backend/app/abuse.py))
 
+### Future Feature: Anonymous Demographic Survey (NOT YET IMPLEMENTED)
+**Privacy-First Architecture** - Collect demographic data from anonymous users without creating persistent profiles:
+
+**Implementation Plan**:
+
+1. **Client-Side Survey Modal**:
+   - Show popup on first visit if localStorage doesn't have `demographic_survey_completed` flag
+   - Multi-step form with questions: age range, gender, race/ethnicity, location (state/region, urban/suburban/rural), political affiliation/ideology, religion, education level
+   - Users can skip survey (optional participation)
+   - Store responses in localStorage as JSON object
+   - Set `demographic_survey_completed: true` flag to prevent re-showing
+
+2. **Vote Submission with Demographics**:
+   - When user votes, client reads demographic data from localStorage
+   - Send demographics along with vote payload to backend
+   - Backend stores demographic attributes directly on `voteBallots` table (new columns: `ageRange`, `gender`, `race`, `region`, `politicalAffiliation`, etc.)
+   - Users who skip survey get NULL values for demographic fields
+
+3. **Privacy Benefits**:
+   - No persistent demographic profile on backend
+   - No separate `demographicId` or linkage tables
+   - Demographics only stored when user actually votes
+   - Each vote is independent snapshot with demographic attributes
+   - If user clears localStorage, they get fresh survey (new "identity")
+   - Can't track a person across devices or sessions
+   - Can analyze aggregate patterns: "voters aged 25-34 preferred option X"
+   - Can't trace: "all votes from this specific person"
+
+4. **Database Schema Changes**:
+   - Add demographic columns to `voteBallots` table (all nullable)
+   - Columns: `ageRange`, `gender`, `race`, `ethnicity`, `region`, `urbanRuralSuburban`, `politicalParty`, `politicalIdeology`, `religion`, `educationLevel`
+   - Use standardized enum values or broad categories for each field
+
+5. **Differential Privacy for Display**:
+   - Add statistical noise to published demographic breakdowns
+   - Never display exact counts, only percentages
+   - Implement minimum thresholds (e.g., don't show breakdowns with < 30 votes)
+   - Use broad categories (age ranges, not exact ages)
+
+**Key Principles**:
+- Demographics stored purely client-side until vote submission
+- No persistent demographic identity on backend
+- Demographic data stored as attributes on vote ballots, not separate profiles
+- Users can opt-out of demographic tracking entirely (skip survey)
+- Clear user communication about privacy protections and data usage
+
+### Future Feature: AI-Generated Poll Context (NOT YET IMPLEMENTED)
+**Optional Educational Context** - Provide neutral, factual background information for poll questions:
+
+**Implementation Plan**:
+
+1. **Database Schema**:
+   - Add `contextText` field to `pollTemplates` table (nullable TEXT or JSONB)
+   - Optional field - not required for all polls
+   - Supports markdown formatting for rich text (links, bold, lists, etc.)
+
+2. **Admin Workflow**:
+   - When creating/editing poll template, admin sees "Generate Context" button
+   - Clicking triggers AI API call to generate neutral background explanation
+   - AI receives poll title, question, and options as input
+   - Generated text appears in editable text area for admin review
+   - Admin can edit, rewrite, or regenerate before saving
+   - Save template with approved context text
+
+3. **AI Generation**:
+   - Use OpenAI GPT-4 or Anthropic Claude API (configurable)
+   - System prompt ensures neutrality: "Provide neutral, factual context for this poll question. Include relevant background, key perspectives, and definitions. Stay objective and cite sources where possible. Keep it concise (200-400 words)."
+   - Input: poll title, question text, option labels
+   - Output: Markdown-formatted context text (~200-400 words)
+
+4. **Frontend Display**:
+   - Add "?" icon or "Context" button to poll cards (both list and detail views)
+   - Click expands section below poll question showing context text
+   - Smooth accordion animation for expansion/collapse
+   - Render markdown with proper formatting
+   - Context state persists in URL or local component state
+
+5. **User Experience**:
+   - Context button only appears if template has contextText
+   - Expandable section doesn't interfere with voting UI
+   - Users can read context before or after voting
+   - Mobile-friendly responsive design
+
+**Key Principles**:
+- Context is optional, not required for all polls
+- Admin has full editorial control - AI only assists
+- Neutrality is critical - avoid bias in explanations
+- Keep context concise and factual
+- Cite sources where appropriate
+
 ### Ranked-Choice Voting (IRV)
 - Instant Runoff Voting tallies in [app/tally.py](backend/app/tally.py) - eliminates lowest-ranked option each round until majority winner
 - Vote structure: `VoteBallot` + `VoteRanking` (one-to-many) storing ordered preference lists
@@ -213,9 +303,9 @@ frontend/src/
 │   └── globals.css             # Tailwind v4 configuration
 ├── components/
 │   ├── PublicLayout.tsx        # Sidebar navigation + search
-│   ├── CategoriesNavigation.tsx # Unused (integrated into PublicLayout)
 │   ├── PollList.tsx            # Renders categories and polls
 │   ├── PollCard.tsx            # Individual poll with voting UI
+│   ├── CurrentResults.tsx      # Live vote results display
 │   ├── ThemeToggle.tsx         # Dark mode toggle
 │   └── IRVRoundsVisualization.tsx # Ranked-choice results display
 └── lib/
@@ -230,9 +320,10 @@ frontend/src/
 - **Features**:
   - Integrated Featured polls section at top of navigation
   - Active page markers and visible section highlights
-  - Global search across all poll titles/questions
+  - Global search across all poll titles/questions (max-w-2xl width)
   - Search results dropdown with poll title, question, and category badge
   - Responsive sidebar (collapsible on mobile)
+  - Logo switches between light/dark versions based on theme (all locations: desktop sidebar, mobile sidebar, mobile header)
 - **Navigation Structure**:
   ```typescript
   const navCategories = [
@@ -249,12 +340,26 @@ frontend/src/
   - Always expanded (no collapse functionality)
   - Supports both SINGLE and RANKED poll types
   - Cloudflare Turnstile integration for vote submission
-  - LocalStorage for vote state persistence
-  - Shows vote confirmation with results after submission
+  - LocalStorage for vote state persistence (`poll_votes` JSON array)
+  - Shows vote confirmation after submission
+  - Different displays based on context:
+    - **Main list**: Full "Your Vote" breakdown with link to view history
+    - **Detail page** (hideHistoryLink=true): Minimal vote indicator, results shown in CurrentResults component below
   - Color accents: emerald primary, blue secondary
-- **Props**: `poll`, `category`, `allCategories`
-- **Removed**: `alwaysExpanded` prop (always shows full content)
+- **Props**: `poll`, `category`, `allCategories`, `hideHistoryLink` (optional)
 - **Styling**: 
+  - Success state: `border-l-4 border-emerald-500` with gradient background
+  - Voting state: `border-l-4 border-blue-500`
+  - Options: `border-2 hover:border-emerald-500`
+
+#### CurrentResults.tsx
+- **Purpose**: Display live vote results on poll detail page after user has voted
+- **Features**:
+  - For SINGLE polls: Shows vote counts and percentages with emerald-to-blue gradient progress bars
+  - For RANKED polls: Shows first-choice counts only with message that full IRV results available after close
+  - Uses `CurrentPollResults` type from lib/types.ts
+  - Displays total votes/ballots count
+- **Used In**: Poll detail page when user has voted and poll status is OPEN 
   - Success state: `border-l-4 border-emerald-500` with gradient background
   - Voting state: `border-l-4 border-blue-500`
   - Options: `border-2 hover:border-emerald-500`
@@ -358,6 +463,7 @@ frontend/src/
   - `getTodayPolls()` - Fetches all polls for today
   - `submitVote(instanceId, rankings, turnstileToken)` - Submit vote with CAPTCHA
   - `getPollHistory(templateId)` - Fetch historical results for a poll
+  - `getCurrentResults(pollId)` - Fetch live vote results for open polls
 - **Cookie handling**: Browser automatically manages `vt` cookie for voter identity
 - **Error handling**: API errors displayed in UI with user-friendly messages
 
@@ -367,8 +473,12 @@ frontend/src/
    - Complete Turnstile CAPTCHA challenge
    - Select option (SINGLE) or rank options (RANKED)
    - Submit vote
-3. **Duplicate prevention**: 409 error if already voted (stored in localStorage + cookie check)
-4. **Results**: After voting, poll card shows results with percentages and bars
+3. **Duplicate prevention**: 409 error if already voted (stored in localStorage `poll_votes` array + cookie check)
+4. **Results Display**:
+   - **Main list**: Shows "Your Vote" breakdown with link to view history
+   - **Detail page**: Shows minimal vote indicator + live CurrentResults component below
+   - For SINGLE polls: Vote counts and percentages with gradient bars
+   - For RANKED polls: First-choice counts only (full IRV rounds shown after poll closes)
 5. **Rankings**: For RANKED polls, submit array of optionIds in preference order
 
 ### TypeScript Types
@@ -377,6 +487,7 @@ Located in `/lib/types.ts`:
 - `PollCategory` - Category with polls and subcategories
 - `PollOption` - Poll option/choice
 - `PollResult` - Historical result snapshot
+- `CurrentPollResults` - Live vote results for open polls
 - `IRVRound` - Ranked-choice voting round data
 
 ### Development Patterns
@@ -417,6 +528,12 @@ Poll cards no longer have collapse functionality - they always show full content
 - Removed `isExpanded` state
 - Removed toggle button
 - Simplified component structure
+
+#### Gradient Progress Bars
+Use emerald-to-blue gradient for all progress bars (current results and history):
+```tsx
+<div className="bg-linear-to-r from-emerald-600 to-blue-600 h-2 rounded-full" />
+```
 
 #### Gradient Headers
 ```tsx

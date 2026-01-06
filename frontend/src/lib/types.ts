@@ -14,6 +14,7 @@ export interface Poll {
   closeDate: string;
   title: string;
   question: string | null;
+  contextText: string | null;
   pollType: PollType;
   maxRank: number | null;
   audience: string;

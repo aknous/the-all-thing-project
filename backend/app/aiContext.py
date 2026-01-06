@@ -48,7 +48,8 @@ async def generatePollContext(
         ValueError: If OpenAI API key is not configured
         Exception: If API call fails
     """
-    if not settings.openaiApiKey:
+    api_key = settings.openai_api_key
+    if not api_key:
         raise ValueError("OpenAI API key not configured. Set OPENAI_API_KEY environment variable.")
     
     # Build user prompt
@@ -72,7 +73,7 @@ Title: {title}
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.openaiApiKey}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
                 json={

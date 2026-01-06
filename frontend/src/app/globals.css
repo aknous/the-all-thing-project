@@ -3,12 +3,26 @@
 @theme inline {
   --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  /* Midnight Blue color palette */
+  --color-midnight-50: #e6eef5;
+  --color-midnight-100: #c1d4e6;
+  --color-midnight-200: #98b6d4;
+  --color-midnight-300: #6f99c2;
+  --color-midnight-400: #4f7fb4;
+  --color-midnight-500: #2f66a6;
+  --color-midnight-600: #25528a;
+  --color-midnight-700: #1d3f6c;
+  --color-midnight-800: #142d4f;
+  --color-midnight-900: #0b1b32;
+  --color-midnight-950: #000a15;
 }
 
 @variant dark (&:where(.dark, .dark *));
 
 body {
   font-family: var(--font-sans);
+  @apply dark:bg-midnight-950;
 }
 
 /* Blog content formatting */

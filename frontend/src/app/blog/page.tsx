@@ -66,10 +66,10 @@ export default function BlogPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950/20">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-midnight-950 dark:via-midnight-950 dark:to-indigo-950/20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading...</p>
+          <p className="mt-4 text-midnight-600 dark:text-midnight-100">Loading...</p>
         </div>
       </div>
     );
@@ -81,7 +81,7 @@ export default function BlogPage() {
         <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600">
           Blog
         </h1>
-        <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-8">
+        <p className="text-lg text-midnight-600 dark:text-midnight-100 mb-8">
           Latest thoughts and updates from The All Thing
         </p>
 
@@ -90,20 +90,20 @@ export default function BlogPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : error ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <div className="text-center py-12 bg-midnight-50 dark:bg-midnight-800/50 rounded-lg border border-midnight-200 dark:border-midnight-700">
             <p className="text-red-600 dark:text-red-400 mb-2">Failed to load blog posts</p>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">{error}</p>
+            <p className="text-sm text-midnight-600 dark:text-midnight-100">{error}</p>
           </div>
         ) : posts.length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <p className="text-zinc-600 dark:text-zinc-400">No blog posts yet. Check back soon!</p>
+          <div className="text-center py-12 bg-midnight-50 dark:bg-midnight-800/50 rounded-lg border border-midnight-200 dark:border-midnight-700">
+            <p className="text-midnight-600 dark:text-midnight-100">No blog posts yet. Check back soon!</p>
           </div>
         ) : (
           <div className="space-y-8">
             {posts.map((post, index) => (
               <article
                 key={index}
-                className="bg-white dark:bg-zinc-900 rounded-lg shadow-md border border-zinc-200 dark:border-zinc-800 overflow-hidden hover:shadow-lg transition-shadow"
+                className="bg-white dark:bg-midnight-950 rounded-lg shadow-md border border-midnight-200 dark:border-midnight-800 overflow-hidden hover:shadow-lg transition-shadow"
               >
                 <div className="p-6">
                   <a
@@ -112,12 +112,12 @@ export default function BlogPage() {
                     rel="noopener noreferrer"
                     className="group"
                   >
-                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-zinc-100 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:via-indigo-600 group-hover:to-rose-600 transition-all">
+                    <h2 className="text-2xl font-bold mb-2 text-midnight-950 dark:text-midnight-100 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:via-indigo-600 group-hover:to-rose-600 transition-all">
                       {post.title}
                     </h2>
                   </a>
                   
-                  <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+                  <div className="flex items-center gap-4 text-sm text-midnight-500 dark:text-midnight-100 mb-4">
                     {post.author && <span>By {post.author}</span>}
                     <span>{new Date(post.pubDate).toLocaleDateString('en-US', { 
                       year: 'numeric', 
@@ -127,7 +127,7 @@ export default function BlogPage() {
                   </div>
 
                   <div 
-                    className="text-zinc-700 dark:text-zinc-300 mb-4 blog-content"
+                    className="text-midnight-700 dark:text-midnight-200 mb-4 blog-content"
                     dangerouslySetInnerHTML={{ __html: post.content }}
                   />
 
