@@ -18,14 +18,14 @@ Guidelines:
 - Stay completely neutral and objective
 - Provide factual background and key perspectives
 - Include relevant definitions if needed
-- Cite sources where appropriate (use general knowledge, no need for specific URLs)
-- Keep it concise: 200-400 words
-- Use markdown formatting for readability (headers, lists, bold, etc.)
+- Be CONCISE and direct - aim for 150-250 words maximum
+- Use markdown formatting sparingly (bold for emphasis, short lists only)
 - Do NOT advocate for any particular option
 - Do NOT make predictions about voting outcomes
 - Focus on helping voters make informed decisions
+- Avoid unnecessary elaboration or tangents
 
-Format your response as markdown text."""
+Format your response as markdown text. Keep it brief and focused."""
 
 
 async def generatePollContext(
@@ -83,7 +83,7 @@ Title: {title}
                         {"role": "user", "content": user_prompt}
                     ],
                     "temperature": 0.7,
-                    "max_tokens": 800
+                    "max_tokens": 500
                 }
             )
             response.raise_for_status()
