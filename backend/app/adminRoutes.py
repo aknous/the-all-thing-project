@@ -458,11 +458,13 @@ async def generateTemplateContext(
         # Log admin action
         await logAdminAction(
             db=db,
-            adminContext=admin,
             action="generate_poll_context",
-            resourceType="template",
-            resourceId=templateId,
-            details={"title": template.title}
+            entityType="template",
+            entityId=templateId,
+            adminKeyHash=admin.keyHash,
+            ipAddress=admin.ipAddress,
+            userAgent=admin.userAgent,
+            extraData={"title": template.title}
         )
         await db.commit()
         
