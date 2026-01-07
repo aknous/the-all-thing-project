@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     
     # Cloudflare Turnstile (optional, for bot protection)
     turnstileSecretKey: str | None = None
+    
+    # OpenAI API (optional, for AI-generated poll context)
+    openaiApiKey: str | None = None
+    
+    @property
+    def openai_api_key(self) -> str | None:
+        """Allow both OPENAI_API_KEY and openaiApiKey env vars"""
+        return os.getenv("OPENAI_API_KEY") or self.openaiApiKey
 
     # Optional cookie settings
     cookieDomain: str | None = None

@@ -70,8 +70,8 @@ export default function PollDetailPage() {
     const savedVotesStr = localStorage.getItem('poll_votes');
     if (!savedVotesStr) return false;
     try {
-      const savedVotes = JSON.parse(savedVotesStr);
-      return savedVotes.some((v: any) => v.pollId === currentPoll.pollId);
+      const savedVotes = JSON.parse(savedVotesStr) as Array<{ pollId: string; rankedChoices: string[] }>;
+      return savedVotes.some((v) => v.pollId === currentPoll.pollId);
     } catch {
       return false;
     }
@@ -168,10 +168,10 @@ export default function PollDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading poll...</p>
+          <p className="mt-4 text-midnight-600 dark:text-midnight-400">Loading poll...</p>
         </div>
       </div>
     );
@@ -179,10 +179,10 @@ export default function PollDetailPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400">Failed to load poll</p>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{error}</p>
+          <p className="mt-2 text-sm text-midnight-600 dark:text-midnight-400">{error}</p>
         </div>
       </div>
     );
@@ -192,7 +192,7 @@ export default function PollDetailPage() {
     return (
       <PublicLayout categories={categories}>
         <div className="max-w-3xl mx-auto">
-          <p className="text-zinc-600 dark:text-zinc-400">Poll not found</p>
+          <p className="text-midnight-600 dark:text-midnight-400">Poll not found</p>
         </div>
       </PublicLayout>
     );
@@ -213,7 +213,7 @@ export default function PollDetailPage() {
         {/* Current Results - Only show on detail page after voting */}
         {hasVoted && currentPoll.status === 'OPEN' && (
           <div className="mb-12">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+            <div className="bg-white dark:bg-midnight-950 rounded-lg shadow-lg border border-midnight-200 dark:border-midnight-800 p-6">
               {resultsLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
@@ -224,7 +224,7 @@ export default function PollDetailPage() {
                   results={currentResults}
                 />
               ) : (
-                <div className="text-zinc-500 dark:text-zinc-400">
+                <div className="text-midnight-500 dark:text-midnight-400">
                   Unable to load current results
                 </div>
               )}
@@ -234,7 +234,7 @@ export default function PollDetailPage() {
 
         {/* Historical Results */}
         <div className="mt-12">
-          <h2 className="text-2xl font-bold mb-6 text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-2xl font-bold mb-6 text-midnight-950 dark:text-midnight-100">
             Past Results
           </h2>
         
@@ -245,7 +245,7 @@ export default function PollDetailPage() {
         )}
 
             {currentPoll && history.length === 0 && (
-              <p className="text-zinc-600 dark:text-zinc-400">No historical results yet.</p>
+              <p className="text-midnight-600 dark:text-midnight-400">No historical results yet.</p>
             )}
 
             {history.length > 0 && (
@@ -256,16 +256,16 @@ export default function PollDetailPage() {
                   return (
                     <div 
                       key={result.pollId}
-                      className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+                      className="bg-white dark:bg-midnight-950 rounded-lg border border-midnight-200 dark:border-midnight-800 overflow-hidden"
                     >
                       {/* Header - Always Visible */}
                       <button
                         onClick={() => togglePoll(result.pollId)}
-                        className="w-full p-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                        className="w-full p-6 text-left hover:bg-midnight-50 dark:hover:bg-midnight-800 transition-colors"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
-                            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                            <div className="text-sm text-midnight-600 dark:text-midnight-400">
                               {new Date(result.pollDate).toLocaleDateString('en-US', { 
                                 weekday: 'long', 
                                 year: 'numeric', 
@@ -273,12 +273,12 @@ export default function PollDetailPage() {
                                 day: 'numeric' 
                               })}
                             </div>
-                            <div className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">
+                            <div className="text-sm text-midnight-500 dark:text-midnight-500 mt-1">
                               {result.totalVotes} {result.totalVotes === 1 ? 'vote' : 'votes'}
                             </div>
                           </div>
                           <svg
-                            className={`w-5 h-5 text-zinc-500 dark:text-zinc-400 transition-transform shrink-0 ml-4 ${
+                            className={`w-5 h-5 text-midnight-500 dark:text-midnight-400 transition-transform shrink-0 ml-4 ${
                               isExpanded ? 'rotate-180' : ''
                             }`}
                             fill="none"
@@ -297,18 +297,18 @@ export default function PollDetailPage() {
                         {/* Winner Preview - Always Visible */}
                         {result.winner && (
                           <div>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                            <p className="text-xs text-midnight-500 dark:text-midnight-400 mb-2">
                               🏆 Winner
                             </p>
                             <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              <span className="font-semibold text-midnight-950 dark:text-midnight-100">
                                 {result.winner.label}
                               </span>
-                              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                              <span className="text-sm text-midnight-600 dark:text-midnight-400">
                                 {result.winner.voteCount} ({result.winner.percentage.toFixed(1)}%)
                               </span>
                             </div>
-                            <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                            <div className="w-full bg-midnight-200 dark:bg-midnight-700 rounded-full h-2">
                               <div
                                 className="bg-linear-to-r from-emerald-600 to-blue-600 h-2 rounded-full"
                                 style={{ width: `${result.winner.percentage}%` }}
@@ -320,10 +320,10 @@ export default function PollDetailPage() {
 
                       {/* Expanded Content - Full Breakdown */}
                       {isExpanded && (
-                        <div className="px-6 pb-6 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                        <div className="px-6 pb-6 pt-2 border-t border-midnight-200 dark:border-midnight-800">
                           {result.pollType === 'RANKED' && result.rounds && result.rounds.length > 0 ? (
                             <>
-                              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 font-medium">
+                              <p className="text-xs text-midnight-500 dark:text-midnight-400 mb-4 font-medium">
                                 Round-by-Round Results
                               </p>
                               <IRVRoundsVisualization
@@ -335,7 +335,7 @@ export default function PollDetailPage() {
                             </>
                           ) : (
                             <>
-                              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 font-medium">
+                              <p className="text-xs text-midnight-500 dark:text-midnight-400 mb-4 font-medium">
                                 Full Vote Breakdown
                               </p>
                               <div className="space-y-4">
@@ -351,15 +351,15 @@ export default function PollDetailPage() {
                                         <span className={`text-sm font-medium ${
                                           isWinner 
                                             ? 'text-green-600 dark:text-green-400' 
-                                            : 'text-zinc-700 dark:text-zinc-300'
+                                            : 'text-midnight-700 dark:text-midnight-300'
                                         }`}>
                                           {isWinner && '🏆 '}{option.label}
                                         </span>
-                                        <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                                        <span className="text-sm text-midnight-600 dark:text-midnight-400">
                                           {option.voteCount} ({percentage}%)
                                         </span>
                                       </div>
-                                      <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                                      <div className="w-full bg-midnight-200 dark:bg-midnight-700 rounded-full h-2">
                                         <div
                                           className="bg-linear-to-r from-emerald-600 to-blue-600 h-2 rounded-full transition-all"
                                           style={{ width: `${percentage}%` }}

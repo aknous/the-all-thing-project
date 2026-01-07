@@ -16,6 +16,7 @@ from .adminAuth import requireAdmin, AdminContext
 from .closeService import closeAndSnapshotForDate
 from . import sanitize
 from .auditLog import logAdminAction
+from .aiContext import generatePollContext
 
 from .models import (
     PollCategory,
@@ -24,9 +25,16 @@ from .models import (
     PollInstance,
     PollPlan,
     PollPlanOption,
+    PresetOptionSet,
 )
 from .rollover import ensureInstancesForDate
-from .schemas import ImportDataInput
+from .schemas import (
+    ImportDataInput,
+    CreatePresetInput,
+    UpdatePresetInput,
+    PresetOptionSetResponse,
+    PresetListResponse,
+)
 
 if TYPE_CHECKING:
     pass
@@ -78,6 +86,7 @@ class TemplateUpdateInput(BaseModel):
     key: str | None = Field(default=None, min_length=2, max_length=64)
     title: str | None = Field(default=None, min_length=2, max_length=256)
     question: str | None = Field(default=None, max_length=1000)
+    contextText: str | None = Field(default=None)
     pollType: PollType | None = None
     maxRank: int | None = Field(default=None, ge=1)
     audience: Audience | None = None
@@ -138,6 +147,7 @@ def serializeTemplate(template: PollTemplate, includeOptions: bool = False) -> d
         "key": template.key,
         "title": template.title,
         "question": template.question,
+        "contextText": template.contextText,
         "pollType": template.pollType,
         "maxRank": template.maxRank,
         "audience": template.audience,
@@ -395,6 +405,8 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
         template.title = sanitize.sanitizeTitle(payload.title, maxLength=256)
     if payload.question is not None:
         template.question = sanitize.sanitizeQuestion(payload.question, maxLength=1000)
+    if payload.contextText is not None:
+        template.contextText = payload.contextText
     if payload.pollType is not None:
         template.pollType = payload.pollType
     if payload.maxRank is not None:
@@ -411,6 +423,61 @@ async def updateTemplate(templateId: str, payload: TemplateUpdateInput, db: Asyn
 
     await db.commit()
     return {"ok": True, "template": serializeTemplate(template, includeOptions=False)}
+
+@router.post("/templates/{templateId}/generate-context")
+async def generateTemplateContext(
+    templateId: str,
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin)
+):
+    """Generate AI-powered context for a poll template"""
+    # Fetch template with options
+    template = (await db.execute(
+        select(PollTemplate)
+        .where(PollTemplate.id == templateId)
+        .options(selectinload(PollTemplate.defaultOptions))
+    )).scalar_one_or_none()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Extract option labels
+    optionLabels = [opt.label for opt in sorted(template.defaultOptions, key=lambda x: x.sortOrder)]
+    
+    if len(optionLabels) < 2:
+        raise HTTPException(status_code=422, detail="Template must have at least 2 options to generate context")
+    
+    try:
+        # Generate context using AI
+        contextText = await generatePollContext(
+            title=template.title,
+            question=template.question,
+            optionLabels=optionLabels
+        )
+        
+        # Log admin action
+        await logAdminAction(
+            db=db,
+            action="generate_poll_context",
+            entityType="template",
+            entityId=templateId,
+            adminKeyHash=admin.adminKeyHash,
+            ipAddress=admin.ipAddress,
+            userAgent=admin.userAgent,
+            extraData={"title": template.title}
+        )
+        await db.commit()
+        
+        return {"ok": True, "contextText": contextText}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to generate context: {str(e)}")
 
 @router.patch("/templates/{templateId}/active")
 async def setTemplateActive(templateId: str, payload: TemplateActiveInput, db: AsyncSession = Depends(getDb)):
@@ -1391,3 +1458,214 @@ async def importData(
         errors=errors,
         details=details
     )
+
+
+# -----------------------------
+# Preset Option Sets
+# -----------------------------
+
+@router.get("/presets", response_model=PresetListResponse)
+async def listPresets(
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """List all preset option sets"""
+    stmt = select(PresetOptionSet).order_by(PresetOptionSet.name)
+    result = await db.execute(stmt)
+    presets = result.scalars().all()
+    
+    return PresetListResponse(
+        presets=[
+            PresetOptionSetResponse(
+                id=preset.id,
+                name=preset.name,
+                description=preset.description,
+                options=preset.options if isinstance(preset.options, list) else [],
+                createdAt=preset.createdAt.isoformat(),
+                updatedAt=preset.updatedAt.isoformat(),
+            )
+            for preset in presets
+        ]
+    )
+
+
+@router.post("/presets", response_model=PresetOptionSetResponse)
+async def createPreset(
+    input: CreatePresetInput,
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """Create a new preset option set"""
+    # Check if name already exists
+    stmt = select(PresetOptionSet).where(PresetOptionSet.name == input.name)
+    existing = await db.execute(stmt)
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Preset with name '{input.name}' already exists")
+    
+    # Convert options to JSONB format
+    options_data = [
+        {
+            "optionId": opt.optionId,
+            "label": sanitize.sanitizeLabel(opt.label),
+            "sortOrder": opt.sortOrder,
+        }
+        for opt in input.options
+    ]
+    
+    preset = PresetOptionSet(
+        id=str(uuid.uuid4()),
+        name=sanitize.sanitizeName(input.name),
+        description=sanitize.sanitizeTitle(input.description) if input.description else None,
+        options=options_data,
+    )
+    
+    db.add(preset)
+    await db.commit()
+    await db.refresh(preset)
+    
+    await logAdminAction(
+        db=db,
+        action="CREATE_PRESET",
+        entityType="preset",
+        entityId=preset.id,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        extraData={"name": preset.name, "optionCount": len(options_data)}
+    )
+    
+    return PresetOptionSetResponse(
+        id=preset.id,
+        name=preset.name,
+        description=preset.description,
+        options=preset.options if isinstance(preset.options, list) else [],
+        createdAt=preset.createdAt.isoformat(),
+        updatedAt=preset.updatedAt.isoformat(),
+    )
+
+
+@router.get("/presets/{preset_id}", response_model=PresetOptionSetResponse)
+async def getPreset(
+    preset_id: str,
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """Get a specific preset by ID"""
+    stmt = select(PresetOptionSet).where(PresetOptionSet.id == preset_id)
+    result = await db.execute(stmt)
+    preset = result.scalar_one_or_none()
+    
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    
+    return PresetOptionSetResponse(
+        id=preset.id,
+        name=preset.name,
+        description=preset.description,
+        options=preset.options if isinstance(preset.options, list) else [],
+        createdAt=preset.createdAt.isoformat(),
+        updatedAt=preset.updatedAt.isoformat(),
+    )
+
+
+@router.put("/presets/{preset_id}", response_model=PresetOptionSetResponse)
+async def updatePreset(
+    preset_id: str,
+    input: UpdatePresetInput,
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """Update a preset option set"""
+    stmt = select(PresetOptionSet).where(PresetOptionSet.id == preset_id)
+    result = await db.execute(stmt)
+    preset = result.scalar_one_or_none()
+    
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    
+    changes = {}
+    
+    if input.name is not None:
+        # Check if new name conflicts with another preset
+        check_stmt = select(PresetOptionSet).where(
+            PresetOptionSet.name == input.name,
+            PresetOptionSet.id != preset_id
+        )
+        existing = await db.execute(check_stmt)
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail=f"Preset with name '{input.name}' already exists")
+        
+        preset.name = sanitize.sanitizeName(input.name)
+        changes["name"] = preset.name
+    
+    if input.description is not None:
+        preset.description = sanitize.sanitizeTitle(input.description) if input.description else None
+        changes["description"] = preset.description
+    
+    if input.options is not None:
+        options_data = [
+            {
+                "optionId": opt.optionId,
+                "label": sanitize.sanitizeLabel(opt.label),
+                "sortOrder": opt.sortOrder,
+            }
+            for opt in input.options
+        ]
+        preset.options = options_data
+        changes["optionCount"] = len(options_data)
+    
+    await db.commit()
+    await db.refresh(preset)
+    
+    await logAdminAction(
+        db=db,
+        action="UPDATE_PRESET",
+        entityType="preset",
+        entityId=preset.id,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        changes=changes
+    )
+    
+    return PresetOptionSetResponse(
+        id=preset.id,
+        name=preset.name,
+        description=preset.description,
+        options=preset.options if isinstance(preset.options, list) else [],
+        createdAt=preset.createdAt.isoformat(),
+        updatedAt=preset.updatedAt.isoformat(),
+    )
+
+
+@router.delete("/presets/{preset_id}")
+async def deletePreset(
+    preset_id: str,
+    admin: AdminContext = Depends(requireAdmin),
+    db: AsyncSession = Depends(getDb),
+):
+    """Delete a preset option set"""
+    stmt = select(PresetOptionSet).where(PresetOptionSet.id == preset_id)
+    result = await db.execute(stmt)
+    preset = result.scalar_one_or_none()
+    
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    
+    preset_name = preset.name
+    
+    await db.delete(preset)
+    await db.commit()
+    
+    await logAdminAction(
+        db=db,
+        action="DELETE_PRESET",
+        entityType="preset",
+        entityId=preset_id,
+        adminKeyHash=admin.adminKeyHash,
+        ipAddress=admin.ipAddress,
+        userAgent=admin.userAgent,
+        extraData={"name": preset_name}
+    )
+    
+    return {"message": "Preset deleted successfully"}

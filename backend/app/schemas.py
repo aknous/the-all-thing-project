@@ -49,3 +49,30 @@ class ImportResult(BaseModel):
     templatesCreated: int
     errors: list[str]
     details: list[ImportResultItem]
+
+# Preset Option Sets Schemas
+class PresetOptionInput(BaseModel):
+    optionId: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=200)
+    sortOrder: int = Field(ge=0)
+
+class CreatePresetInput(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=500)
+    options: list[PresetOptionInput] = Field(min_length=1)
+
+class UpdatePresetInput(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = None
+    options: list[PresetOptionInput] | None = None
+
+class PresetOptionSetResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None
+    options: list[dict]  # Will contain the JSONB data
+    createdAt: str
+    updatedAt: str
+
+class PresetListResponse(BaseModel):
+    presets: list[PresetOptionSetResponse]

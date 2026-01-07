@@ -51,6 +51,7 @@ export default function AdminLayout({
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/categories', label: 'Categories' },
     { href: '/admin/templates', label: 'Templates' },
+    { href: '/admin/presets', label: 'Presets' },
     { href: '/admin/instances', label: 'Instances' },
     { href: '/admin/operations', label: 'Operations' },
     { href: '/admin/import', label: 'Import' },

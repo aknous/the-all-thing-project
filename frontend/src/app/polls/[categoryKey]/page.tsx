@@ -57,10 +57,10 @@ export default function CategoryPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading polls...</p>
+          <p className="mt-4 text-midnight-600 dark:text-midnight-400">Loading polls...</p>
         </div>
       </div>
     );
@@ -68,10 +68,10 @@ export default function CategoryPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-midnight-950">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400">Failed to load polls</p>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{error}</p>
+          <p className="mt-2 text-sm text-midnight-600 dark:text-midnight-400">{error}</p>
         </div>
       </div>
     );
@@ -83,7 +83,7 @@ export default function CategoryPage() {
     return (
       <PublicLayout categories={categories}>
         <div className="max-w-4xl">
-          <p className="text-zinc-600 dark:text-zinc-400">Category not found</p>
+          <p className="text-midnight-600 dark:text-midnight-400">Category not found</p>
         </div>
       </PublicLayout>
     );

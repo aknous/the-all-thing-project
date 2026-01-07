@@ -74,7 +74,7 @@ function VisibleSectionHighlight({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: { delay: 0.2 } }}
       exit={{ opacity: 0 }}
-      className="absolute inset-x-0 top-0 bg-zinc-800/2.5 will-change-transform dark:bg-white/2.5"
+      className="absolute inset-x-0 top-0 bg-midnight-800/2.5 will-change-transform dark:bg-white/2.5"
       style={{ borderRadius: 8, height, top }}
     />
   )
@@ -109,7 +109,7 @@ function ActivePageMarker({
   )
 }
 
-function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onLinkClick }: { pathname: string; visibleSections?: string[]; newPollsCount?: number; onLinkClick?: () => void }) {
+function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, hasFeaturedPolls = false, onLinkClick }: { pathname: string; visibleSections?: string[]; newPollsCount?: number; hasFeaturedPolls?: boolean; onLinkClick?: () => void }) {
   const router = useRouter()
 
   // Determine active section based on pathname and hash (derived state)
@@ -161,9 +161,9 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
     { categoryKey: 'blog', categoryName: 'Blog' }
   ]
 
-  // Subsections for Welcome
+  // Subsections for Welcome - conditionally include Featured
   const infoSubsections: NavCategory[] = [
-    { categoryKey: 'featured', categoryName: 'Featured Polls' },
+    ...(hasFeaturedPolls ? [{ categoryKey: 'featured', categoryName: 'Featured Polls' }] : []),
     { categoryKey: 'new', categoryName: 'New Polls' },
     { categoryKey: 'about', categoryName: 'About' },
     { categoryKey: 'faq', categoryName: 'FAQ' }
@@ -173,7 +173,7 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
     <li className="relative">
       <motion.h2
         layout="position"
-        className="text-sm font-semibold text-zinc-900 dark:text-white"
+        className="text-sm font-semibold text-midnight-950 dark:text-white"
       >
         Info
       </motion.h2>
@@ -190,7 +190,7 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
         </AnimatePresence>
         <motion.div
           layout
-          className="absolute inset-y-0 left-2 w-px bg-zinc-900/10 dark:bg-white/5"
+          className="absolute inset-y-0 left-2 w-px bg-midnight-950/10 dark:bg-white/5"
         />
         <AnimatePresence initial={false}>
           {(isWelcomeActive || activeSection === 'blog') && (
@@ -215,8 +215,8 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
               aria-current={isWelcomeActive ? 'page' : undefined}
               className={`flex justify-between gap-2 py-1 pr-3 pl-4 text-sm transition w-full text-left min-h-8 ${
                 isWelcomeActive
-                  ? 'text-zinc-900 dark:text-white'
-                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+                  ? 'text-midnight-950 dark:text-white'
+                  : 'text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white'
               }`}
             >
               <span className="truncate">Welcome</span>
@@ -235,43 +235,41 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
                     transition: { duration: 0.15 },
                   }}
                 >
-                  <li>
-                    <button
-                      onClick={() => handleSectionClick('featured')}
-                      className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white min-h-8"
-                    >
-                      <span className="truncate">Featured Polls</span>
-                    </button>
-                  </li>
-                  {newPollsCount > 0 && (
-                    <li>
-                      <button
-                        onClick={() => handleSectionClick('new')}
-                        className="flex items-center gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left min-h-8"
-                      >
-                        <span className="truncate font-semibold text-blue-600 dark:text-blue-400">New Polls</span>
-                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      </button>
-                    </li>
-                  )}
-                  <li>
-                    <button
-                      onClick={() => handleSectionClick('about')}
-                      className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white min-h-8"
-                    >
-                      <span className="truncate">About The All Thing Project</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={() => handleSectionClick('faq')}
-                      className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white min-h-8"
-                    >
-                      <span className="truncate">FAQ</span>
-                    </button>
-                  </li>
+                  {infoSubsections.map((section) => {
+                    // Special handling for New Polls with count indicator
+                    if (section.categoryKey === 'new' && newPollsCount > 0) {
+                      return (
+                        <li key={section.categoryKey}>
+                          <button
+                            onClick={() => handleSectionClick(section.categoryKey)}
+                            className="flex items-center gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left min-h-8"
+                          >
+                            <span className="truncate font-semibold text-blue-600 dark:text-blue-400">{section.categoryName}</span>
+                            <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </button>
+                        </li>
+                      )
+                    }
+                    
+                    // Don't show New Polls if count is 0
+                    if (section.categoryKey === 'new' && newPollsCount === 0) {
+                      return null
+                    }
+                    
+                    // Regular subsection
+                    return (
+                      <li key={section.categoryKey}>
+                        <button
+                          onClick={() => handleSectionClick(section.categoryKey)}
+                          className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white min-h-8"
+                        >
+                          <span className="truncate">{section.categoryName}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
                 </motion.ul>
               )}
             </AnimatePresence>
@@ -287,8 +285,8 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, onL
               aria-current={activeSection === 'blog' ? 'page' : undefined}
               className={`flex justify-between gap-2 py-1 pr-3 pl-4 text-sm transition w-full text-left min-h-8 ${
                 activeSection === 'blog'
-                  ? 'text-zinc-900 dark:text-white'
-                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+                  ? 'text-midnight-950 dark:text-white'
+                  : 'text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white'
               }`}
             >
               <span className="truncate">Blog</span>
@@ -356,7 +354,7 @@ function CategoriesNavigation({ categories, activeCategory, onCategoryClick, vis
     <li className="relative mt-6 md:mt-0">
       <motion.h2
         layout="position"
-        className="text-sm font-semibold text-zinc-900 dark:text-white"
+        className="text-sm font-semibold text-midnight-950 dark:text-white"
       >
         Polls
       </motion.h2>
@@ -373,7 +371,7 @@ function CategoriesNavigation({ categories, activeCategory, onCategoryClick, vis
         </AnimatePresence>
         <motion.div
           layout
-          className="absolute inset-y-0 left-2 w-px bg-zinc-900/10 dark:bg-white/5"
+          className="absolute inset-y-0 left-2 w-px bg-midnight-950/10 dark:bg-white/5"
         />
         <AnimatePresence initial={false}>
           {activeParent && (
@@ -395,8 +393,8 @@ function CategoriesNavigation({ categories, activeCategory, onCategoryClick, vis
                   aria-current={isActive ? 'page' : undefined}
                   className={`flex justify-between gap-2 py-1 pr-3 pl-4 text-sm transition w-full text-left min-h-8 ${
                     isActive
-                      ? 'text-zinc-900 dark:text-white'
-                      : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+                      ? 'text-midnight-950 dark:text-white'
+                      : 'text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white'
                   }`}
                 >
                   <span className="truncate">{category.categoryName}</span>
@@ -419,7 +417,7 @@ function CategoriesNavigation({ categories, activeCategory, onCategoryClick, vis
                         <li key={section.categoryId}>
                           <button
                             onClick={() => handleChildClick(section.categoryKey, category.categoryKey)}
-                            className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white min-h-8"
+                            className="flex justify-between gap-2 py-1 pr-3 pl-7 text-sm transition w-full text-left text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white min-h-8"
                           >
                             <span className="truncate">{section.categoryName}</span>
                           </button>
@@ -444,6 +442,22 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  
+  // Check if there are any featured polls
+  const hasFeaturedPolls = useMemo(() => {
+    const checkFeatured = (cats: PollCategory[]): boolean => {
+      for (const cat of cats) {
+        if (cat.polls.some(poll => poll.featured)) {
+          return true
+        }
+        if (cat.subCategories && checkFeatured(cat.subCategories)) {
+          return true
+        }
+      }
+      return false
+    }
+    return checkFeatured(categories)
+  }, [categories])
   
   // Search across all polls using useMemo
   const searchResults = useMemo(() => {
@@ -504,7 +518,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950">
+    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-midnight-950 dark:via-midnight-950 dark:to-indigo-950">
       {/* Mobile menu overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
@@ -525,17 +539,17 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
               transition={{ type: 'tween', duration: 0.3 }}
               className="fixed inset-y-0 left-0 z-50 w-72 lg:hidden"
             >
-              <div className="flex h-full flex-col gap-y-5 overflow-y-auto border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 pb-4">
+              <div className="flex h-full flex-col gap-y-5 overflow-y-auto border-r border-midnight-200 dark:border-midnight-800 bg-white dark:bg-midnight-950 px-6 pb-4">
                 {/* Logo and close button */}
                 <div className="flex h-16 shrink-0 items-center justify-between">
                   <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center">
                     <Image
-                      src="/TheAllThingProject-LogoFull.png"
+                      src="/TheAllThingProject-LogoFull-Dark.png"
                       alt="The All Thing Project"
                       width={240}
                       height={60}
                       priority
-                      className="h-10 w-auto dark:hidden"
+                      className="h-12 w-auto dark:hidden"
                     />
                     <Image
                       src="/TheAllThingProject-LogoFull-White.png"
@@ -543,12 +557,12 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                       width={240}
                       height={60}
                       priority
-                      className="h-10 w-auto hidden dark:block"
+                      className="h-12 w-auto hidden dark:block"
                     />
                   </Link>
                   <button
                     onClick={() => setMobileMenuOpen(false)}
-                    className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                    className="text-midnight-500 hover:text-midnight-950 dark:hover:text-white"
                   >
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -559,7 +573,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                 {/* Navigation */}
                 <nav className="flex flex-1 flex-col">
                   <ul role="list" className="space-y-6">
-                    <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} />
+                    <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} hasFeaturedPolls={hasFeaturedPolls} />
                     <CategoriesNavigation
                       categories={categories}
                       activeCategory={activeCategory}
@@ -579,25 +593,25 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
       
       {/* Desktop Sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm px-6 pb-4">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-midnight-200 dark:border-midnight-800 bg-white/80 dark:bg-midnight-900/80 backdrop-blur-sm px-6 pb-4">
           {/* Logo */}
           <div className="flex h-16 shrink-0 items-center">
             <Link href="/" className="flex items-center">
               <Image
-                src="/TheAllThingProject-LogoFull.png"
+                src="/TheAllThingProject-LogoFull-Dark.png"
                 alt="The All Thing Project"
-                width={240}
-                height={60}
+                width={280}
+                height={70}
                 priority
-                className="h-10 w-auto dark:hidden"
+                className="h-12 w-auto dark:hidden"
               />
               <Image
                 src="/TheAllThingProject-LogoFull-White.png"
                 alt="The All Thing Project"
-                width={240}
-                height={60}
+                width={280}
+                height={70}
                 priority
-                className="h-10 w-auto hidden dark:block"
+                className="h-12 w-auto hidden dark:block"
               />
             </Link>
           </div>
@@ -605,7 +619,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
           {/* Navigation */}
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="space-y-6">
-              <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} onLinkClick={() => {}} />
+              <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} hasFeaturedPolls={hasFeaturedPolls} onLinkClick={() => {}} />
               <CategoriesNavigation
                 categories={categories}
                 activeCategory={activeCategory}
@@ -620,13 +634,13 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
       {/* Main content */}
       <div className="lg:pl-72 flex-1">
         {/* Top header */}
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-midnight-200 dark:border-midnight-800 bg-white/95 dark:bg-midnight-900/80 backdrop-blur px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1 items-center justify-between">
               {/* Mobile menu button */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="lg:hidden -m-2.5 p-2.5 text-zinc-700 dark:text-zinc-200"
+                className="lg:hidden -m-2.5 p-2.5 text-midnight-700 dark:text-midnight-100"
               >
                 <span className="sr-only">Open sidebar</span>
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -637,20 +651,20 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
               <div className="lg:hidden flex-1 flex justify-center">
                 <Link href="/" className="flex items-center">
                   <Image
-                    src="/TheAllThingProject-LogoFull.png"
+                    src="/TheAllThingProject-LogoFull-Dark.png"
                     alt="The All Thing Project"
-                    width={200}
-                    height={50}
+                    width={280}
+                    height={70}
                     priority
-                    className="h-8 w-auto dark:hidden"
+                    className="h-12 w-auto dark:hidden"
                   />
                   <Image
                     src="/TheAllThingProject-LogoFull-White.png"
                     alt="The All Thing Project"
-                    width={200}
-                    height={50}
+                    width={280}
+                    height={70}
                     priority
-                    className="h-8 w-auto hidden dark:block"
+                    className="h-10 w-auto hidden dark:block"
                   />
                 </Link>
               </div>
@@ -659,7 +673,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
               <div className="relative hidden sm:flex flex-1 max-w-2xl mx-4" ref={searchRef}>
                 <div className="relative w-full">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <svg className="h-5 w-5 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="h-5 w-5 text-midnight-400" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
                     </svg>
                   </div>
@@ -668,13 +682,13 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                     placeholder="Search polls..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="block w-full rounded-md border-0 bg-white dark:bg-zinc-800 py-1.5 pl-10 pr-3 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-inset focus:ring-blue-600 dark:focus:ring-blue-500 sm:text-sm sm:leading-6"
+                    className="block w-full rounded-md border-0 bg-white dark:bg-midnight-800 py-1.5 pl-10 pr-3 text-midnight-950 dark:text-midnight-50 placeholder:text-midnight-400 dark:placeholder:text-midnight-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 dark:focus:ring-blue-500 sm:text-sm sm:leading-6"
                   />
                 </div>
                 
                 {/* Search Results Dropdown */}
                 {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute z-50 mt-2 w-full rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 max-h-96 overflow-auto">
+                  <div className="absolute z-50 mt-2 w-full rounded-md bg-white dark:bg-midnight-800 shadow-lg ring-1 ring-black ring-opacity-5 max-h-96 overflow-auto">
                     <ul className="py-1">
                       {searchResults.map(({ poll, category }) => (
                         <li key={poll.pollId}>
@@ -684,15 +698,15 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                               setSearchQuery('')
                               setShowSearchResults(false)
                             }}
-                            className="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                            className="block px-4 py-3 hover:bg-midnight-50 dark:hover:bg-midnight-700 transition-colors"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                                <p className="text-sm font-medium text-midnight-950 dark:text-midnight-100 truncate">
                                   {poll.title}
                                 </p>
                                 {poll.question && (
-                                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">
+                                  <p className="text-sm text-midnight-500 dark:text-midnight-100 mt-1 line-clamp-2">
                                     {poll.question}
                                   </p>
                                 )}
@@ -709,8 +723,8 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                 )}
                 
                 {showSearchResults && searchQuery && searchResults.length === 0 && (
-                  <div className="absolute z-50 mt-2 w-full rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 p-4">
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center">No polls found</p>
+                  <div className="absolute z-50 mt-2 w-full rounded-md bg-white dark:bg-midnight-800 shadow-lg ring-1 ring-black ring-opacity-5 p-4">
+                    <p className="text-sm text-midnight-500 dark:text-midnight-100 text-center">No polls found</p>
                   </div>
                 )}
               </div>

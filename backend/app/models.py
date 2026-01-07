@@ -30,6 +30,33 @@ PollType = Literal["SINGLE", "RANKED"]
 Audience = Literal["PUBLIC", "USER_ONLY"]
 
 # -----------------------------
+# Preset Option Sets
+# -----------------------------
+
+class PresetOptionSet(Base):
+    __tablename__ = "presetOptionSets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    # Store options as JSONB array: [{"optionId": "...", "label": "...", "sortOrder": 0}, ...]
+    options: Mapped[dict] = mapped_column(JsonType, nullable=False)
+    
+    createdAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+    updatedAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+# -----------------------------
 # Categories
 # -----------------------------
 
@@ -93,6 +120,7 @@ class PollTemplate(Base):
     key: Mapped[str] = mapped_column(String(64), nullable=False)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     question: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    contextText: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # AI-generated or admin-written context
 
     pollType: Mapped[str] = mapped_column(String(16), nullable=False)   # "SINGLE" | "RANKED"
     maxRank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

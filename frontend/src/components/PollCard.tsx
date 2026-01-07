@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Poll, PollCategory } from '@/lib/types';
 import { submitVote } from '@/lib/api';
 import { Turnstile } from '@marsidev/react-turnstile';
@@ -44,6 +46,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
   const [previousVote, setPreviousVote] = useState<string[] | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [showContext, setShowContext] = useState(false);
 
   // Calculate time remaining
   useEffect(() => {
@@ -182,16 +185,16 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
     // Results will be displayed in CurrentResults component below
     if (hideHistoryLink) {
       return (
-        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-midnight-950 rounded-lg shadow-lg border border-midnight-200 dark:border-midnight-800 overflow-hidden">
           <div className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
               <div className="flex-1">
-                <h2 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                <h2 className="text-lg sm:text-xl font-semibold text-midnight-950 dark:text-midnight-100 mb-1">
                   {poll.title}
                 </h2>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                <span className="text-sm font-medium text-midnight-500 dark:text-midnight-100">
                   {timeRemaining}
                 </span>
                 {poll.pollType === 'RANKED' && (
@@ -203,9 +206,47 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
             </div>
 
             {poll.question && (
-              <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 mb-4">
+              <p className="text-sm sm:text-base text-midnight-600 dark:text-midnight-100 mb-4">
                 {poll.question}
               </p>
+            )}
+
+            {/* Context Section */}
+            {poll.contextText && (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowContext(!showContext)}
+                  className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showContext ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                  {showContext ? 'Hide' : 'Show'} Context
+                </button>
+                {showContext && (
+                  <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {poll.contextText}
+                      </ReactMarkdown>
+                    </div>
+                    <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                      AI-generated content, reviewed by a human
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
@@ -250,14 +291,14 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
 
     // On list page, show full voted state with link to history
     return (
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+      <div className="bg-white dark:bg-midnight-950 rounded-lg shadow-lg border border-midnight-200 dark:border-midnight-800 overflow-hidden">
         <div className="p-6">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-1">
                 <Link
                   href={pollUrl}
-                  className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-indigo-600 hover:to-pink-600 dark:hover:from-indigo-400 dark:hover:to-pink-400 transition-all duration-200"
+                  className="text-xl font-semibold text-midnight-950 dark:text-midnight-50 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-indigo-600 hover:to-pink-600 dark:hover:from-indigo-400 dark:hover:to-pink-400 transition-all duration-200"
                 >
                   {poll.title}
                 </Link>
@@ -267,16 +308,54 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                   </span>
                 )}
               </div>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              <span className="text-sm font-medium text-midnight-500 dark:text-midnight-100">
                 {timeRemaining}
               </span>
             </div>
           </div>
 
           {poll.question && (
-            <p className="text-zinc-600 dark:text-zinc-400 mb-4 mt-4">
+            <p className="text-midnight-600 dark:text-midnight-100 mb-4 mt-4">
               {poll.question}
             </p>
+          )}
+
+          {/* Context Section */}
+          {poll.contextText && (
+            <div className="mb-4 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowContext(!showContext)}
+                className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+              >
+                <svg
+                  className={`w-4 h-4 transition-transform ${showContext ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+                {showContext ? 'Hide' : 'Show'} Context
+              </button>
+              {showContext && (
+                <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                  <div className="prose prose-sm dark:prose-invert max-w-none ttext-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {poll.contextText}
+                    </ReactMarkdown>
+                  </div>
+                  <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                    AI-generated content, reviewed by a human
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="bg-emerald-100 dark:bg-emerald-900/20 border border-emerald-500 rounded-lg p-6 mb-4">
@@ -316,7 +395,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-midnight-500 dark:text-midnight-100">
               You&apos;ve already voted on this poll
             </p>
             <Link
@@ -332,19 +411,19 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
   }
 
   return (
-    <div className="bg-gradient-to-br from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-800/50 rounded-lg shadow-md border-l-4 border-blue-500 dark:border-blue-600 overflow-hidden ring-1 ring-zinc-200 dark:ring-zinc-800">
+    <div className="bg-gradient-to-br from-white to-midnight-50 dark:from-midnight-950 dark:to-midnight-800/50 rounded-lg shadow-md border-l-4 border-blue-500 dark:border-blue-600 overflow-hidden ring-1 ring-midnight-200 dark:ring-midnight-800">
       <div className="p-4 sm:p-6">
         <div className="mb-4">
           <div className="mb-2">
             <Link
               href={`/polls/${category.categoryKey}/${poll.templateKey}`}
-              className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-blue-600 hover:via-indigo-600 hover:to-rose-600 dark:hover:from-blue-400 dark:hover:via-indigo-400 dark:hover:to-rose-400 transition-all duration-200"
+              className="text-lg sm:text-xl font-semibold text-midnight-950 dark:text-midnight-100 hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-blue-600 hover:via-indigo-600 hover:to-rose-600 dark:hover:from-blue-400 dark:hover:via-indigo-400 dark:hover:to-rose-400 transition-all duration-200"
             >
               {poll.title}
             </Link>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            <span className="text-sm font-medium text-midnight-500 dark:text-midnight-100">
               {timeRemaining}
             </span>
             {poll.pollType === 'RANKED' && (
@@ -356,9 +435,47 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
         </div>
 
         {poll.question && (
-          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 mb-6">
+          <p className="text-sm sm:text-base text-midnight-600 dark:text-midnight-100 mb-6">
             {poll.question}
           </p>
+        )}
+
+        {/* Context Section */}
+        {poll.contextText && (
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => setShowContext(!showContext)}
+              className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+            >
+              <svg
+                className={`w-4 h-4 transition-transform ${showContext ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+              {showContext ? 'Hide' : 'Show'} Context
+            </button>
+            {showContext && (
+              <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {poll.contextText}
+                  </ReactMarkdown>
+                </div>
+                <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                  AI-generated content, reviewed by a human
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
         <form onSubmit={handleSubmit}>
@@ -368,7 +485,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
               poll.options.map((option) => (
                 <label
                   key={option.optionId}
-                  className="flex items-center p-3.5 sm:p-3 rounded-lg border-2 border-zinc-300 dark:border-zinc-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all"
+                  className="flex items-center p-3.5 sm:p-3 rounded-lg border-2 border-midnight-300 dark:border-midnight-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all"
                 >
                   <input
                     type="radio"
@@ -378,7 +495,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                     onChange={() => handleSingleChoice(option.optionId)}
                     className="w-4 h-4 text-sky-600 mr-3 shrink-0"
                   />
-                    <span className="text-sm sm:text-base text-zinc-900 dark:text-zinc-100">
+                    <span className="text-sm sm:text-base text-midnight-950 dark:text-midnight-100">
                       {option.label}
                     </span>
                   </label>
@@ -386,7 +503,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
               ) : (
                 // Ranked choice (checkboxes with order)
                 <>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
+                  <p className="text-sm text-midnight-600 dark:text-midnight-100 mb-2">
                     Select up to {poll.maxRank || poll.options.length} options in order of preference
                   </p>
                   {poll.options.map((option) => {
@@ -399,7 +516,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                         className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${
                           isSelected
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                            : 'border-midnight-300 dark:border-midnight-700 hover:bg-midnight-50 dark:hover:bg-midnight-800'
                         }`}
                       >
                         <input
@@ -413,7 +530,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                             {rank + 1}
                           </span>
                         )}
-                        <span className="text-zinc-900 dark:text-zinc-100">
+                        <span className="text-midnight-950 dark:text-midnight-100">
                           {option.label}
                         </span>
                       </label>
@@ -445,7 +562,7 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
             <button
               type="submit"
               disabled={submitting || selectedOptions.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-midnight-300 dark:disabled:bg-midnight-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
             >
               {submitting ? 'Submitting...' : 'Submit Vote'}
             </button>

@@ -45,10 +45,10 @@ export function ThemeToggle() {
       type="button"
       aria-label="Toggle dark mode"
       onClick={toggleTheme}
-      className="group rounded-full bg-white/90 px-3 py-2 shadow-lg shadow-zinc-800/5 ring-1 ring-zinc-900/5 backdrop-blur transition dark:bg-zinc-800/90 dark:ring-white/10 dark:hover:ring-white/20"
+      className="group rounded-full bg-white/90 px-3 py-2 shadow-lg shadow-midnight-800/5 ring-1 ring-midnight-900/5 backdrop-blur transition dark:bg-midnight-800/90 dark:ring-white/10 dark:hover:ring-white/20"
     >
-      <SunIcon className="h-5 w-5 fill-zinc-100 stroke-zinc-500 transition group-hover:fill-zinc-200 group-hover:stroke-zinc-700 dark:hidden" />
-      <MoonIcon className="hidden h-5 w-5 fill-zinc-700 stroke-zinc-500 transition dark:block dark:group-hover:stroke-zinc-400" />
+      <SunIcon className="h-5 w-5 fill-midnight-100 stroke-midnight-500 transition group-hover:fill-midnight-200 group-hover:stroke-midnight-700 dark:hidden" />
+      <MoonIcon className="hidden h-5 w-5 fill-midnight-700 stroke-midnight-500 transition dark:block dark:group-hover:stroke-midnight-400" />
     </button>
   )
 }

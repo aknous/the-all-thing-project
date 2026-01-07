@@ -31,6 +31,7 @@ interface Template {
   key: string;
   title: string;
   question: string | null;
+  contextText: string | null;
   pollType: 'SINGLE' | 'RANKED';
   maxRank: number | null;
   audience: string;
@@ -59,6 +60,7 @@ export default function EditTemplatePage() {
     key: '',
     title: '',
     question: '',
+    contextText: '',
     pollType: 'SINGLE' as 'SINGLE' | 'RANKED',
     maxRank: '',
     audience: 'PUBLIC',
@@ -68,6 +70,7 @@ export default function EditTemplatePage() {
   });
 
   const [options, setOptions] = useState<OptionInput[]>([]);
+  const [generatingContext, setGeneratingContext] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -90,6 +93,7 @@ export default function EditTemplatePage() {
         key: t.key,
         title: t.title,
         question: t.question || '',
+        contextText: t.contextText || '',
         pollType: t.pollType,
         maxRank: t.maxRank?.toString() || '',
         audience: t.audience,
@@ -158,6 +162,7 @@ export default function EditTemplatePage() {
         categoryId: formData.categoryId,
         key: formData.key,
         title: formData.title,
+        contextText: formData.contextText || null,
         question: formData.question || null,
         pollType: formData.pollType,
         maxRank: formData.pollType === 'RANKED' && formData.maxRank ? parseInt(formData.maxRank) : null,
@@ -206,7 +211,41 @@ export default function EditTemplatePage() {
   const updateOption = (index: number, label: string) => {
     setOptions(options.map((opt, i) => i === index ? { ...opt, label } : opt));
   };
+const generateContext = async () => {
+    if (!formData.title) {
+      alert('Please enter a poll title first');
+      return;
+    }
 
+    const validOptions = options.filter(o => o.label.trim());
+    if (validOptions.length < 2) {
+      alert('Please add at least 2 options before generating context');
+      return;
+    }
+
+    setGeneratingContext(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      const response = await adminFetch(`${API_URL}/admin/templates/${templateId}/generate-context`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      
+      if (data.ok && data.contextText) {
+        setFormData({ ...formData, contextText: data.contextText });
+      } else {
+        alert('Failed to generate context');
+      }
+    } catch (error) {
+      console.error('Failed to generate context:', error);
+      alert('Failed to generate context. Make sure OpenAI API key is configured.');
+    } finally {
+      setGeneratingContext(false);
+    }
+  };
+
+  
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -293,6 +332,48 @@ export default function EditTemplatePage() {
                        bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               placeholder="Additional question text"
             />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Context (optional)
+              </label>
+              <button
+                type="button"
+                onClick={generateContext}
+                disabled={generatingContext}
+                className="px-3 py-1 text-sm bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-purple-400 disabled:to-blue-400 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                {generatingContext ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generate with AI
+                  </>
+                )}
+              </button>
+            </div>
+            <textarea
+              value={formData.contextText}
+              onChange={(e) => setFormData({ ...formData, contextText: e.target.value })}
+              rows={8}
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg
+                       bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-mono text-sm"
+              placeholder="Markdown-formatted context to help voters understand the poll question..."
+            />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              Supports markdown formatting. This will be shown as an expandable section in the poll card.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
