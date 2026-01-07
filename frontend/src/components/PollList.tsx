@@ -49,7 +49,7 @@ function CategorySection({
       
       {/* Polls in this category */}
       {hasPolls && (
-        <div className="space-y-4">
+        <div className="space-y-16">
           {category.polls.map((poll) => (
             <PollCard 
               key={poll.pollId} 

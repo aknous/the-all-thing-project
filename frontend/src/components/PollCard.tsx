@@ -235,12 +235,15 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                   {showContext ? 'Hide' : 'Show'} Context
                 </button>
                 {showContext && (
-                  <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-midnight-950 dark:prose-headings:text-midnight-100 prose-p:text-midnight-700 dark:prose-p:text-midnight-200 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-midnight-950 dark:prose-strong:text-midnight-100 prose-ul:text-midnight-700 dark:prose-ul:text-midnight-200 prose-ol:text-midnight-700 dark:prose-ol:text-midnight-200">
+                  <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {poll.contextText}
                       </ReactMarkdown>
                     </div>
+                    <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                      AI-generated content, reviewed by a human
+                    </p>
                   </div>
                 )}
               </div>
@@ -341,12 +344,15 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
                 {showContext ? 'Hide' : 'Show'} Context
               </button>
               {showContext && (
-                <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-midnight-950 dark:prose-headings:text-midnight-100 prose-p:text-midnight-700 dark:prose-p:text-midnight-200 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-midnight-950 dark:prose-strong:text-midnight-100 prose-ul:text-midnight-700 dark:prose-ul:text-midnight-200 prose-ol:text-midnight-700 dark:prose-ol:text-midnight-200">
+                <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                  <div className="prose prose-sm dark:prose-invert max-w-none ttext-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {poll.contextText}
                     </ReactMarkdown>
                   </div>
+                  <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                    AI-generated content, reviewed by a human
+                  </p>
                 </div>
               )}
             </div>
@@ -458,12 +464,15 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
               {showContext ? 'Hide' : 'Show'} Context
             </button>
             {showContext && (
-              <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-midnight-950 dark:prose-headings:text-midnight-100 prose-p:text-midnight-700 dark:prose-p:text-midnight-200 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-midnight-950 dark:prose-strong:text-midnight-100 prose-ul:text-midnight-700 dark:prose-ul:text-midnight-200 prose-ol:text-midnight-700 dark:prose-ol:text-midnight-200">
+              <div className="mt-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-midnight-500 dark:text-midnight-100 prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-800 dark:prose-p:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-800 dark:prose-ul:text-gray-100 prose-ol:text-gray-800 dark:prose-ol:text-gray-100 [&>*+*]:mt-3">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {poll.contextText}
                   </ReactMarkdown>
                 </div>
+                <p className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                  AI-generated content, reviewed by a human
+                </p>
               </div>
             )}
           </div>
