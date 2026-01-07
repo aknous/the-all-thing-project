@@ -166,7 +166,7 @@ export default function Home() {
           <section id="featured" className="mt-8 scroll-mt-20">
             <div className="mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600">
-                Featured Polls
+                Poll of the Day
               </h2>
             </div>
             

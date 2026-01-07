@@ -163,7 +163,7 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, has
 
   // Subsections for Welcome - conditionally include Featured
   const infoSubsections: NavCategory[] = [
-    ...(hasFeaturedPolls ? [{ categoryKey: 'featured', categoryName: 'Featured Polls' }] : []),
+    ...(hasFeaturedPolls ? [{ categoryKey: 'featured', categoryName: 'Poll of the Day' }] : []),
     { categoryKey: 'new', categoryName: 'New Polls' },
     { categoryKey: 'about', categoryName: 'About' },
     { categoryKey: 'faq', categoryName: 'FAQ' }
@@ -356,7 +356,7 @@ function CategoriesNavigation({ categories, activeCategory, onCategoryClick, vis
         layout="position"
         className="text-sm font-semibold text-midnight-950 dark:text-white"
       >
-        Polls
+        Polls by Category
       </motion.h2>
       <div className="relative mt-3 pl-2">
         <AnimatePresence initial={false}>
