@@ -38,6 +38,11 @@ python-dateutil>=2.9
 httpx>=0.27
 
 # ----------------------------
+# OpenAI (AI context generation)
+# ----------------------------
+openai>=1.0
+
+# ----------------------------
 # Development & testing
 # ----------------------------
 pytest>=8.0

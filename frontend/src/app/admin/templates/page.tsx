@@ -27,6 +27,7 @@ interface Category {
   key: string;
   name: string;
   sortOrder: number;
+  displayName: string; // Full hierarchical display name
 }
 
 interface CategoryResponse {
@@ -62,18 +63,20 @@ export default function TemplatesPage() {
 
       setTemplates(templatesData.templates || []);
       
-      // Flatten categories including subcategories
-      const flattenCategories = (cats: CategoryResponse[]): Category[] => {
+      // Flatten categories with full hierarchical paths
+      const flattenCategories = (cats: CategoryResponse[], parentPath: string = ''): Category[] => {
         const result: Category[] = [];
         for (const cat of cats) {
+          const displayName = parentPath ? `${parentPath} - ${cat.name}` : cat.name;
           result.push({
             id: cat.id,
             key: cat.key,
             name: cat.name,
             sortOrder: cat.sortOrder,
+            displayName: displayName,
           });
           if (cat.subCategories && cat.subCategories.length > 0) {
-            result.push(...flattenCategories(cat.subCategories));
+            result.push(...flattenCategories(cat.subCategories, displayName));
           }
         }
         return result;
@@ -192,7 +195,9 @@ export default function TemplatesPage() {
             >
               <option value="">All Categories</option>
               {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {cat.displayName}
+                </option>
               ))}
             </select>
           </div>

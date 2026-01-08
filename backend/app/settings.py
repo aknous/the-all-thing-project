@@ -1,4 +1,5 @@
 import os
+from typing import Optional, Union
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 
@@ -12,23 +13,32 @@ class Settings(BaseSettings):
     adminKey: str
     
     # Cloudflare Turnstile (optional, for bot protection)
-    turnstileSecretKey: str | None = None
+    turnstileSecretKey: Optional[str] = None
     
     # OpenAI API (optional, for AI-generated poll context)
-    openaiApiKey: str | None = None
+    openaiApiKey: Optional[str] = None
+
+    # Optional override for the OpenAI model used by AI context generation
+    # (e.g. "gpt-4o", "gpt-5-mini")
+    openaiModel: Optional[str] = None
     
     @property
-    def openai_api_key(self) -> str | None:
+    def openai_api_key(self) -> Optional[str]:
         """Allow both OPENAI_API_KEY and openaiApiKey env vars"""
         return os.getenv("OPENAI_API_KEY") or self.openaiApiKey
 
+    @property
+    def openai_model(self) -> str:
+        """Allow OPENAI_MODEL env var; default to gpt-5-mini."""
+        return os.getenv("OPENAI_MODEL") or (self.openaiModel or "gpt-5-mini")
+
     # Optional cookie settings
-    cookieDomain: str | None = None
+    cookieDomain: Optional[str] = None
     cookieSecure: bool = True
 
     # CORS settings (comma-separated list of allowed origins)
     # Default includes localhost for development
-    corsOrigins: str | list[str] = "http://localhost:3000,http://localhost:5173,https://localhost:3000,https://localhost:5173"
+    corsOrigins: Union[str, list[str]] = "http://localhost:3000,http://localhost:5173,https://localhost:3000,https://localhost:5173"
 
     @field_validator('corsOrigins', mode='before')
     @classmethod

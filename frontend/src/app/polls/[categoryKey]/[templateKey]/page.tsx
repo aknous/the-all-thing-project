@@ -266,7 +266,7 @@ export default function PollDetailPage() {
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <div className="text-sm text-midnight-600 dark:text-midnight-400">
-                              {new Date(result.pollDate).toLocaleDateString('en-US', { 
+                              {new Date(result.pollDate + 'T12:00:00').toLocaleDateString('en-US', { 
                                 weekday: 'long', 
                                 year: 'numeric', 
                                 month: 'long', 
