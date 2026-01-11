@@ -14,7 +14,6 @@ class VoteInput(BaseModel):
     race: str | None = Field(default=None, max_length=100)
     ethnicity: str | None = Field(default=None, max_length=100)
     state: str | None = Field(default=None, max_length=2)
-    region: str | None = Field(default=None, max_length=50)
     urbanRuralSuburban: str | None = Field(default=None, max_length=20)
     politicalParty: str | None = Field(default=None, max_length=50)
     politicalIdeology: str | None = Field(default=None, max_length=50)

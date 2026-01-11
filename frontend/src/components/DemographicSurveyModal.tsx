@@ -8,7 +8,6 @@ export interface DemographicData {
   race?: string;
   ethnicity?: string;
   state?: string;
-  region?: string;
   urbanRuralSuburban?: string;
   politicalParty?: string;
   politicalIdeology?: string;
@@ -168,10 +167,6 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, on
                   <div className="text-sm text-gray-900 dark:text-gray-100">{data.state || 'Not specified'}</div>
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Region</div>
-                  <div className="text-sm text-gray-900 dark:text-gray-100">{data.region || 'Not specified'}</div>
-                </div>
-                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Location Type</div>
                   <div className="text-sm text-gray-900 dark:text-gray-100">{data.urbanRuralSuburban || 'Not specified'}</div>
                 </div>
@@ -307,27 +302,6 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, on
                   {US_STATES.map((state) => (
                     <option key={state} value={state}>{state}</option>
                   ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Region
-                </label>
-                <select
-                  value={data.region || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setData({ ...data, region: value === '' ? undefined : value });
-                  }}
-                  className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:border-indigo-500 focus:outline-none"
-                >
-                  <option value="">Prefer not to say</option>
-                  <option value="Northeast">Northeast</option>
-                  <option value="Southeast">Southeast</option>
-                  <option value="Midwest">Midwest</option>
-                  <option value="Southwest">Southwest</option>
-                  <option value="West">West</option>
                 </select>
               </div>
 

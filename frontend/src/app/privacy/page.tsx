@@ -7,13 +7,26 @@ import { PollCategory } from '@/lib/types';
 import { PublicLayout } from '@/components/PublicLayout';
 import { getCachedCategories, setCachedCategories } from '@/lib/categoryCache';
 
+export const dynamic = 'force-dynamic';
+
 export default function PrivacyPage() {
-  const [categories, setCategories] = useState<PollCategory[]>(() => getCachedCategories() || []);
-  const [loading, setLoading] = useState(() => !getCachedCategories());
+  const [categories, setCategories] = useState<PollCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (categories.length > 0) return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setMounted(true);
+    
+    // Check cache first
+    const cached = getCachedCategories();
+    if (cached) {
+      setCategories(cached);
+      setLoading(false);
+      return;
+    }
 
+    // Fetch if no cache
     getTodayPolls()
       .then((data) => {
         setCategories(data.categories);
@@ -23,7 +36,12 @@ export default function PrivacyPage() {
         console.error('Failed to fetch polls:', err);
       })
       .finally(() => setLoading(false));
-  }, [categories.length]);
+  }, []);
+
+  // Don't render anything on server side
+  if (!mounted) {
+    return null;
+  }
 
   if (loading) {
     return (
