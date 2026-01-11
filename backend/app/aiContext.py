@@ -1,11 +1,11 @@
 # app/aiContext.py
 """
 AI-powered poll context generation service.
-Uses OpenAI GPT-4 to generate neutral, educational background information for polls.
+Uses OpenAI to generate neutral, educational background information for polls.
 """
 
-import httpx
 from typing import Optional
+from openai import AsyncOpenAI
 from .settings import settings
 from .logger import logger
 
@@ -34,7 +34,7 @@ async def generatePollContext(
     optionLabels: list[str]
 ) -> str:
     """
-    Generate AI-powered context for a poll using OpenAI GPT-4.
+    Generate AI-powered context for a poll using OpenAI.
     
     Args:
         title: Poll title
@@ -51,6 +51,8 @@ async def generatePollContext(
     api_key = settings.openai_api_key
     if not api_key:
         raise ValueError("OpenAI API key not configured. Set OPENAI_API_KEY environment variable.")
+
+    model = settings.openai_model
     
     # Build user prompt
     user_prompt = f"""Generate neutral, educational context for this poll:
@@ -65,38 +67,75 @@ Title: {title}
     for i, label in enumerate(optionLabels, 1):
         user_prompt += f"{i}. {label}\n"
     
-    user_prompt += "\nProvide factual background that helps voters understand this poll question. Use markdown formatting."
+    user_prompt += "\nProvide concise, factual background that helps voters understand this poll question. Use markdown formatting and cite sources when possible."
     
     # Call OpenAI API
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "gpt-4o",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 500
-                }
+        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
+        response = await client.responses.create(
+            model=model,
+            tools=[
+                {"type": "web_search"},
+            ],
+            instructions=SYSTEM_PROMPT,
+            input=user_prompt,
+            temperature=.5,
+            max_output_tokens=900
+        )
+
+        status = getattr(response, "status", None)
+        incomplete_details = getattr(response, "incomplete_details", None)
+        usage = getattr(response, "usage", None)
+
+        # SDK provides output_text when available.
+        content = (getattr(response, "output_text", None) or "").strip()
+        if not content:
+            # Fallback: try to extract any output_text items from the response.
+            try:
+                dumped = response.model_dump()
+                parts: list[str] = []
+                for item in dumped.get("output", []) or []:
+                    if item.get("type") != "message":
+                        continue
+                    for c in item.get("content", []) or []:
+                        if c.get("type") == "output_text" and c.get("text"):
+                            parts.append(c["text"])
+                content = "\n".join(parts).strip()
+            except Exception:
+                content = ""
+
+        if not content:
+            # Don't spam logs with full content, but include enough to debug.
+            try:
+                dumped = response.model_dump()
+                logger.error(
+                    "OpenAI returned empty output_text. model=%s response_keys=%s",
+                    model,
+                    sorted(list(dumped.keys())),
+                )
+            except Exception:
+                logger.error("OpenAI returned empty output_text. model=%s", model)
+            raise Exception("OpenAI returned empty content")
+
+        if incomplete_details:
+            logger.warning(
+                "OpenAI response incomplete. model=%s status=%s incomplete_details=%s usage=%s",
+                model,
+                status,
+                incomplete_details,
+                usage,
             )
-            response.raise_for_status()
-            
-            data = response.json()
-            context_text = data["choices"][0]["message"]["content"].strip()
-            
-            logger.info(f"Generated AI context for poll '{title}' ({len(context_text)} chars)")
-            return context_text
-            
-    except httpx.HTTPStatusError as e:
-        logger.error(f"OpenAI API error: {e.response.status_code} - {e.response.text}")
-        raise Exception(f"OpenAI API error: {e.response.status_code}")
+
+        logger.info(
+            "Generated AI context for poll '%s' (%s chars) using model '%s' (status=%s usage=%s)",
+            title,
+            len(content),
+            model,
+            status,
+            usage,
+        )
+        return content
+
     except Exception as e:
         logger.error(f"Failed to generate AI context: {str(e)}")
         raise

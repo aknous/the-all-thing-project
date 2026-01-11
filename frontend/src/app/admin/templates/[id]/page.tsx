@@ -9,6 +9,7 @@ interface Category {
   key: string;
   name: string;
   sortOrder: number;
+  displayName: string; // Full hierarchical display name
 }
 
 interface CategoryResponse {
@@ -108,18 +109,20 @@ export default function EditTemplatePage() {
         sortOrder: opt.sortOrder,
       })));
 
-      // Flatten categories
-      const flattenCategories = (cats: CategoryResponse[]): Category[] => {
+      // Flatten categories with full hierarchical paths
+      const flattenCategories = (cats: CategoryResponse[], parentPath: string = ''): Category[] => {
         const result: Category[] = [];
         for (const cat of cats) {
+          const displayName = parentPath ? `${parentPath} - ${cat.name}` : cat.name;
           result.push({
             id: cat.id,
             key: cat.key,
             name: cat.name,
             sortOrder: cat.sortOrder,
+            displayName: displayName,
           });
           if (cat.subCategories && cat.subCategories.length > 0) {
-            result.push(...flattenCategories(cat.subCategories));
+            result.push(...flattenCategories(cat.subCategories, displayName));
           }
         }
         return result;
@@ -178,9 +181,9 @@ export default function EditTemplatePage() {
         body: JSON.stringify(detailsPayload),
       });
 
-      // Update template options separately
+      // Update template options separately - ensure sortOrder is sequential
       const optionsPayload = {
-        options: validOptions,
+        options: validOptions.map((opt, i) => ({ ...opt, sortOrder: i })),
       };
 
       await adminFetch(`${API_URL}/admin/templates/${templateId}/options`, {
@@ -204,7 +207,9 @@ export default function EditTemplatePage() {
 
   const removeOption = (index: number) => {
     if (options.length > 2) {
-      setOptions(options.filter((_, i) => i !== index));
+      const updated = options.filter((_, i) => i !== index);
+      // Re-index sortOrder to prevent gaps
+      setOptions(updated.map((opt, i) => ({ ...opt, sortOrder: i })));
     }
   };
 
@@ -285,7 +290,9 @@ const generateContext = async () => {
             >
               <option value="">Select a category</option>
               {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {cat.displayName}
+                </option>
               ))}
             </select>
           </div>

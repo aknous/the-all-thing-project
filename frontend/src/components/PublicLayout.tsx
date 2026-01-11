@@ -8,6 +8,8 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { PollCategory, Poll } from '@/lib/types'
 import { ThemeToggle } from './ThemeToggle'
 import { remToPx } from '@/lib/remToPx'
+import { hasDemographicSurvey, getDemographicData, saveDemographicData } from '@/lib/demographicSurvey'
+import DemographicSurveyModal, { DemographicData } from './DemographicSurveyModal'
 
 interface PublicLayoutProps {
   children: React.ReactNode
@@ -292,6 +294,7 @@ function InfoNavigation({ pathname, visibleSections = [], newPollsCount = 0, has
               <span className="truncate">Blog</span>
             </button>
           </motion.li>
+
         </ul>
       </div>
     </li>
@@ -441,7 +444,27 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showSurveyModal, setShowSurveyModal] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+
+  // Check if user has completed demographic survey
+  const hasSurveyData = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    return hasDemographicSurvey()
+  }, []) // Static check
+
+  const handleSurveyModalComplete = (data: DemographicData) => {
+    saveDemographicData(data)
+    setShowSurveyModal(false)
+  }
+
+  const handleSurveyModalSkip = () => {
+    setShowSurveyModal(false)
+  }
+
+  const handleSurveyModalClose = () => {
+    setShowSurveyModal(false)
+  }
   
   // Check if there are any featured polls
   const hasFeaturedPolls = useMemo(() => {
@@ -573,7 +596,12 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
                 {/* Navigation */}
                 <nav className="flex flex-1 flex-col">
                   <ul role="list" className="space-y-6">
-                    <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} hasFeaturedPolls={hasFeaturedPolls} />
+                    <InfoNavigation 
+                      pathname={pathname} 
+                      visibleSections={visibleSections} 
+                      newPollsCount={newPollsCount} 
+                      hasFeaturedPolls={hasFeaturedPolls}
+                    />
                     <CategoriesNavigation
                       categories={categories}
                       activeCategory={activeCategory}
@@ -590,6 +618,17 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
           </>
         )}
       </AnimatePresence>
+
+      {/* Demographic Survey Modal */}
+      {showSurveyModal && (
+        <DemographicSurveyModal
+          onComplete={handleSurveyModalComplete}
+          onSkip={handleSurveyModalSkip}
+          onClose={handleSurveyModalClose}
+          initialData={getDemographicData() || undefined}
+          isEditMode={true}
+        />
+      )}
       
       {/* Desktop Sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
@@ -619,7 +658,13 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
           {/* Navigation */}
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="space-y-6">
-              <InfoNavigation pathname={pathname} visibleSections={visibleSections} newPollsCount={newPollsCount} hasFeaturedPolls={hasFeaturedPolls} onLinkClick={() => {}} />
+              <InfoNavigation 
+                pathname={pathname} 
+                visibleSections={visibleSections} 
+                newPollsCount={newPollsCount} 
+                hasFeaturedPolls={hasFeaturedPolls} 
+                onLinkClick={() => {}}
+              />
               <CategoriesNavigation
                 categories={categories}
                 activeCategory={activeCategory}
@@ -730,6 +775,19 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
               </div>
               
               <div className="flex items-center gap-4 ml-auto">
+                {hasSurveyData && (
+                  <button
+                    onClick={() => setShowSurveyModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white transition-colors rounded-lg hover:bg-midnight-100 dark:hover:bg-midnight-800"
+                    aria-label="View demographic survey"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="hidden sm:inline">Survey</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400">✓</span>
+                  </button>
+                )}
                 <ThemeToggle />
               </div>
             </div>

@@ -9,6 +9,7 @@ interface Category {
   key: string;
   name: string;
   sortOrder: number;
+  displayName: string; // Full hierarchical display name
 }
 
 interface CategoryResponse {
@@ -70,18 +71,20 @@ export default function NewTemplatePage() {
       const res = await adminFetch(`${API_URL}/admin/categories`);
       const data = await res.json();
       
-      // Flatten categories
-      const flattenCategories = (cats: CategoryResponse[]): Category[] => {
+      // Flatten categories with full hierarchical paths
+      const flattenCategories = (cats: CategoryResponse[], parentPath: string = ''): Category[] => {
         const result: Category[] = [];
         for (const cat of cats) {
+          const displayName = parentPath ? `${parentPath} - ${cat.name}` : cat.name;
           result.push({
             id: cat.id,
             key: cat.key,
             name: cat.name,
             sortOrder: cat.sortOrder,
+            displayName: displayName,
           });
           if (cat.subCategories && cat.subCategories.length > 0) {
-            result.push(...flattenCategories(cat.subCategories));
+            result.push(...flattenCategories(cat.subCategories, displayName));
           }
         }
         return result;
@@ -189,7 +192,7 @@ export default function NewTemplatePage() {
         audience: formData.audience,
         durationDays: parseInt(formData.durationDays),
         isActive: formData.isActive,
-        options: validOptions,
+        options: validOptions.map((opt, i) => ({ ...opt, sortOrder: i })),
       };
 
       await adminFetch(`${API_URL}/admin/templates`, {
@@ -213,7 +216,9 @@ export default function NewTemplatePage() {
 
   const removeOption = (index: number) => {
     if (options.length > 2) {
-      setOptions(options.filter((_, i) => i !== index));
+      const updated = options.filter((_, i) => i !== index);
+      // Re-index sortOrder to prevent gaps
+      setOptions(updated.map((opt, i) => ({ ...opt, sortOrder: i })));
     }
   };
 
@@ -252,7 +257,9 @@ export default function NewTemplatePage() {
             >
               <option value="">Select a category</option>
               {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {cat.displayName}
+                </option>
               ))}
             </select>
           </div>

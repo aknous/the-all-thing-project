@@ -26,6 +26,7 @@ interface Instance {
 interface Category {
   id: string;
   name: string;
+  displayName: string; // Full hierarchical display name
 }
 
 interface CategoryResponse {
@@ -61,13 +62,14 @@ export default function InstanceDetailPage() {
       setInstance(instanceData.instance);
       setSelectedCategory(instanceData.instance.categoryId);
 
-      // Flatten categories
-      const flattenCategories = (cats: CategoryResponse[]): Category[] => {
+      // Flatten categories with full hierarchical paths
+      const flattenCategories = (cats: CategoryResponse[], parentPath: string = ''): Category[] => {
         const result: Category[] = [];
         for (const cat of cats) {
-          result.push({ id: cat.id, name: cat.name });
+          const displayName = parentPath ? `${parentPath} - ${cat.name}` : cat.name;
+          result.push({ id: cat.id, name: cat.name, displayName: displayName });
           if (cat.subCategories && cat.subCategories.length > 0) {
-            result.push(...flattenCategories(cat.subCategories));
+            result.push(...flattenCategories(cat.subCategories, displayName));
           }
         }
         return result;
@@ -282,7 +284,9 @@ export default function InstanceDetailPage() {
                        bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
             >
               {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {cat.displayName}
+                </option>
               ))}
             </select>
             
