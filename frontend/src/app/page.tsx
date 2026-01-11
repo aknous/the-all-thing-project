@@ -255,7 +255,7 @@ export default function Home() {
                 Is my vote anonymous?
               </h3>
               <p className="text-midnight-700 dark:dark:text-midnight-200 leading-relaxed">
-                Yes. Votes are anonymous. The project may collect limited, high-level metadata (such as general location) to help analyze trends, but no personally identifying information is collected or stored.
+                Yes. Votes are anonymous and cannot be traced back to you. On your first vote, you may be asked to complete an optional demographic survey (age range, location, political affiliation, etc.). This data is stored locally in your browser and only sent with your votes if you choose to provide it. You can skip the survey entirely or clear your data at any time using the Survey button in the header.
               </p>
             </div>
 
@@ -313,7 +313,7 @@ export default function Home() {
                 Why don’t you require accounts?
               </h3>
               <p className="text-midnight-700 dark:dark:text-midnight-200 leading-relaxed">
-                For now, the project is intentionally lightweight and anonymous to lower the barrier to participation. Account-based polls and deeper demographic analysis may be explored later, but they’re not part of the initial version.
+                The project is intentionally lightweight and anonymous to lower the barrier to participation. No accounts or personal information are required to vote.
               </p>
             </div>
 

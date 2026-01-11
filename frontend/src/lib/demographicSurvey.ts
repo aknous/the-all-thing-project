@@ -9,6 +9,14 @@ export function hasDemographicSurvey(): boolean {
   return localStorage.getItem(SURVEY_COMPLETED_KEY) === 'true';
 }
 
+export function hasDemographicData(): boolean {
+  if (typeof window === 'undefined') return false;
+  const data = getDemographicData();
+  if (!data) return false;
+  // Check if data has any non-empty values
+  return Object.values(data).some(value => value !== undefined && value !== '');
+}
+
 export function getDemographicData(): DemographicData | null {
   if (typeof window === 'undefined') return null;
   const data = localStorage.getItem(SURVEY_DATA_KEY);

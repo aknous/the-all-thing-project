@@ -14,6 +14,7 @@ import {
   saveDemographicData, 
   markSurveySkipped 
 } from '@/lib/demographicSurvey';
+import { useDemographicSurveyUpdate } from '@/contexts/DemographicSurveyContext';
 
 interface PollCardProps {
   poll: Poll;
@@ -46,6 +47,7 @@ function findParentCategory(categories: PollCategory[], childId: string): PollCa
 }
 
 export default function PollCard({ poll, category, allCategories, hideHistoryLink = false }: PollCardProps) {
+  const onDemographicSurveyUpdate = useDemographicSurveyUpdate();
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +227,9 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
   const handleSurveyComplete = (data: DemographicData) => {
     saveDemographicData(data);
     setShowSurvey(false);
+    
+    // Notify parent that survey was updated
+    onDemographicSurveyUpdate?.();
     
     // Clear sessionStorage
     sessionStorage.removeItem(`survey_state_${poll.pollId}`);

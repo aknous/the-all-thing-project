@@ -8,7 +8,6 @@ export interface DemographicData {
   race?: string;
   ethnicity?: string;
   state?: string;
-  region?: string;
   urbanRuralSuburban?: string;
   politicalParty?: string;
   politicalIdeology?: string;
@@ -20,6 +19,7 @@ interface DemographicSurveyModalProps {
   onComplete: (data: DemographicData) => void;
   onSkip: () => void;
   onClose?: () => void; // Optional close without changes
+  onClear?: () => void; // Callback when data is cleared
   initialData?: DemographicData; // Pre-populate with existing data
   isEditMode?: boolean; // Whether this is editing existing data
 }
@@ -32,7 +32,7 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-export default function DemographicSurveyModal({ onComplete, onSkip, onClose, initialData, isEditMode = false }: DemographicSurveyModalProps) {
+export default function DemographicSurveyModal({ onComplete, onSkip, onClose, onClear, initialData, isEditMode = false }: DemographicSurveyModalProps) {
   const [viewMode, setViewMode] = useState<'summary' | 'survey'>(isEditMode && initialData ? 'summary' : 'survey');
   const [step, setStep] = useState(1);
   const [data, setData] = useState<DemographicData>(initialData || {});
@@ -60,7 +60,12 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, in
   const handleClearData = () => {
     if (confirm('Are you sure you want to clear all your demographic data? This cannot be undone.')) {
       setData({});
-      onComplete({});
+      if (onClear) {
+        onClear();
+      } else {
+        // Fallback to onComplete with empty data if onClear not provided
+        onComplete({});
+      }
     }
   };
 
@@ -101,16 +106,36 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, in
           </div>
           {viewMode === 'survey' && (
             <div className="mt-4 flex gap-2">
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-2 flex-1 rounded-full transition-colors ${
-                    i + 1 <= step
-                      ? 'bg-gradient-to-r from-indigo-600 to-pink-600'
-                      : 'bg-gray-200 dark:bg-gray-700'
-                  }`}
-                />
-              ))}
+              {Array.from({ length: totalSteps }).map((_, i) => {
+                // Calculate gradient segment for each bar to create continuous effect
+                // Indigo-600: rgb(79, 70, 229) -> Pink-600: rgb(219, 39, 119)
+                const startProgress = i / totalSteps;
+                const endProgress = (i + 1) / totalSteps;
+                
+                const startR = Math.round(79 + (219 - 79) * startProgress);
+                const startG = Math.round(70 + (39 - 70) * startProgress);
+                const startB = Math.round(229 + (119 - 229) * startProgress);
+                
+                const endR = Math.round(79 + (219 - 79) * endProgress);
+                const endG = Math.round(70 + (39 - 70) * endProgress);
+                const endB = Math.round(229 + (119 - 229) * endProgress);
+                
+                return (
+                  <div
+                    key={i}
+                    className="h-2 flex-1 rounded-full transition-all"
+                    style={{
+                      background: i + 1 <= step 
+                        ? `linear-gradient(to right, rgb(${startR}, ${startG}, ${startB}), rgb(${endR}, ${endG}, ${endB}))`
+                        : undefined
+                    }}
+                  >
+                    {i + 1 > step && (
+                      <div className="h-full w-full bg-gray-200 dark:bg-gray-700 rounded-full" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -140,10 +165,6 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, in
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">State</div>
                   <div className="text-sm text-gray-900 dark:text-gray-100">{data.state || 'Not specified'}</div>
-                </div>
-                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Region</div>
-                  <div className="text-sm text-gray-900 dark:text-gray-100">{data.region || 'Not specified'}</div>
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Location Type</div>
@@ -281,27 +302,6 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, in
                   {US_STATES.map((state) => (
                     <option key={state} value={state}>{state}</option>
                   ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Region
-                </label>
-                <select
-                  value={data.region || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setData({ ...data, region: value === '' ? undefined : value });
-                  }}
-                  className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:border-indigo-500 focus:outline-none"
-                >
-                  <option value="">Prefer not to say</option>
-                  <option value="Northeast">Northeast</option>
-                  <option value="Southeast">Southeast</option>
-                  <option value="Midwest">Midwest</option>
-                  <option value="Southwest">Southwest</option>
-                  <option value="West">West</option>
                 </select>
               </div>
 
@@ -472,7 +472,7 @@ export default function DemographicSurveyModal({ onComplete, onSkip, onClose, in
                 {step > 1 && (
                   <button
                     onClick={handleBack}
-                    className="px-6 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500"
+                    className="px-6 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300"
                   >
                     Back
                   </button>

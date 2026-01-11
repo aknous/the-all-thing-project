@@ -355,7 +355,6 @@ class VoteBallot(Base):
     race: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ethnicity: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state: Mapped[str | None] = mapped_column(String(2), nullable=True)  # US state code
-    region: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Geographic region
     urbanRuralSuburban: Mapped[str | None] = mapped_column(String(20), nullable=True)
     politicalParty: Mapped[str | None] = mapped_column(String(50), nullable=True)
     politicalIdeology: Mapped[str | None] = mapped_column(String(50), nullable=True)
