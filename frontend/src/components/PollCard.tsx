@@ -7,6 +7,13 @@ import remarkGfm from 'remark-gfm';
 import { Poll, PollCategory } from '@/lib/types';
 import { submitVote } from '@/lib/api';
 import { Turnstile } from '@marsidev/react-turnstile';
+import DemographicSurveyModal, { DemographicData } from './DemographicSurveyModal';
+import { 
+  hasDemographicSurvey, 
+  getDemographicData, 
+  saveDemographicData, 
+  markSurveySkipped 
+} from '@/lib/demographicSurvey';
 
 interface PollCardProps {
   poll: Poll;
@@ -47,6 +54,26 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(false);
+  const [showSurvey, setShowSurvey] = useState(false);
+  const [pendingVoteData, setPendingVoteData] = useState<{ selections: string[], token: string | null } | null>(null);
+
+  // Restore survey state from sessionStorage on mount (in case of refresh during survey)
+  useEffect(() => {
+    const savedSurveyState = sessionStorage.getItem(`survey_state_${poll.pollId}`);
+    if (savedSurveyState) {
+      try {
+        const { showSurvey: savedShowSurvey, pendingVoteData: savedPendingData } = JSON.parse(savedSurveyState);
+        setShowSurvey(savedShowSurvey);
+        setPendingVoteData(savedPendingData);
+        // Restore selected options to show in the form
+        if (savedPendingData?.selections) {
+          setSelectedOptions(savedPendingData.selections);
+        }
+      } catch (e) {
+        sessionStorage.removeItem(`survey_state_${poll.pollId}`);
+      }
+    }
+  }, [poll.pollId]);
 
   // Calculate time remaining
   useEffect(() => {
@@ -134,13 +161,36 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
       return;
     }
 
+    // Check if user needs to complete demographic survey
+    if (!hasDemographicSurvey()) {
+      // Show survey modal first
+      const voteData = { selections: selectedOptions, token: turnstileToken };
+      setPendingVoteData(voteData);
+      setShowSurvey(true);
+      
+      // Save to sessionStorage in case of refresh
+      sessionStorage.setItem(`survey_state_${poll.pollId}`, JSON.stringify({
+        showSurvey: true,
+        pendingVoteData: voteData
+      }));
+      return;
+    }
+
+    // Proceed with vote submission
+    await submitVoteWithDemographics(selectedOptions, turnstileToken);
+  };
+
+  const submitVoteWithDemographics = async (selections: string[], token: string | null) => {
     setSubmitting(true);
     setError(null);
 
     try {
+      const demographicData = getDemographicData();
+      
       await submitVote(poll.pollId, {
-        rankedChoices: selectedOptions,
-        turnstileToken: turnstileToken || undefined,
+        rankedChoices: selections,
+        turnstileToken: token || undefined,
+        ...demographicData, // Spread demographic fields
       });
       
       // Save vote to localStorage
@@ -153,12 +203,12 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
       // Add new vote
       filteredVotes.push({
         pollId: poll.pollId,
-        rankedChoices: selectedOptions,
+        rankedChoices: selections,
         timestamp: Date.now(),
       });
       
       localStorage.setItem('poll_votes', JSON.stringify(filteredVotes));
-      setPreviousVote(selectedOptions);
+      setPreviousVote(selections);
       setSuccess(true);
       
       // Dispatch event for detail page to listen to
@@ -169,6 +219,34 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
       setError(err instanceof Error ? err.message : 'Failed to submit vote');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSurveyComplete = (data: DemographicData) => {
+    saveDemographicData(data);
+    setShowSurvey(false);
+    
+    // Clear sessionStorage
+    sessionStorage.removeItem(`survey_state_${poll.pollId}`);
+    
+    // Submit the pending vote with demographic data
+    if (pendingVoteData) {
+      submitVoteWithDemographics(pendingVoteData.selections, pendingVoteData.token);
+      setPendingVoteData(null);
+    }
+  };
+
+  const handleSurveySkip = () => {
+    markSurveySkipped();
+    setShowSurvey(false);
+    
+    // Clear sessionStorage
+    sessionStorage.removeItem(`survey_state_${poll.pollId}`);
+    
+    // Submit the pending vote without demographic data
+    if (pendingVoteData) {
+      submitVoteWithDemographics(pendingVoteData.selections, pendingVoteData.token);
+      setPendingVoteData(null);
     }
   };
 
@@ -411,7 +489,8 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
   }
 
   return (
-    <div className="bg-gradient-to-br from-white to-midnight-50 dark:from-midnight-950 dark:to-midnight-800/50 rounded-lg shadow-md border-l-4 border-blue-500 dark:border-blue-600 overflow-hidden ring-1 ring-midnight-200 dark:ring-midnight-800">
+    <>
+      <div className="bg-gradient-to-br from-white to-midnight-50 dark:from-midnight-950 dark:to-midnight-800/50 rounded-lg shadow-md border-l-4 border-blue-500 dark:border-blue-600 overflow-hidden ring-1 ring-midnight-200 dark:ring-midnight-800">
       <div className="p-4 sm:p-6">
         <div className="mb-4">
           <div className="mb-2">
@@ -569,5 +648,14 @@ export default function PollCard({ poll, category, allCategories, hideHistoryLin
           </form>
         </div>
       </div>
-    );
+      
+      {/* Demographic Survey Modal */}
+      {showSurvey && (
+        <DemographicSurveyModal
+          onComplete={handleSurveyComplete}
+          onSkip={handleSurveySkip}
+        />
+      )}
+    </>
+  );
 }

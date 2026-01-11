@@ -349,6 +349,19 @@ class VoteBallot(Base):
     regionCode: Mapped[str | None] = mapped_column(String(32), nullable=True)   # sometimes available; provider-specific
     cityName: Mapped[str | None] = mapped_column(String(128), nullable=True)    # optional; usually None for MVP
 
+    # Demographic data (optional, from client-side survey)
+    ageRange: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    race: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ethnicity: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(2), nullable=True)  # US state code
+    region: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Geographic region
+    urbanRuralSuburban: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    politicalParty: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    politicalIdeology: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    religion: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    educationLevel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # Convenience: first choice for single-choice polls
     firstChoiceOptionId: Mapped[str | None] = mapped_column(
         String(36),

@@ -7,6 +7,19 @@ class VoteInput(BaseModel):
     rankedChoices: list[str] = Field(min_length=1)
     idempotencyKey: str | None = Field(default=None, max_length=128)
     turnstileToken: str | None = Field(default=None, description="Cloudflare Turnstile verification token")
+    
+    # Optional demographic data from client-side survey
+    ageRange: str | None = Field(default=None, max_length=20)
+    gender: str | None = Field(default=None, max_length=50)
+    race: str | None = Field(default=None, max_length=100)
+    ethnicity: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=2)
+    region: str | None = Field(default=None, max_length=50)
+    urbanRuralSuburban: str | None = Field(default=None, max_length=20)
+    politicalParty: str | None = Field(default=None, max_length=50)
+    politicalIdeology: str | None = Field(default=None, max_length=50)
+    religion: str | None = Field(default=None, max_length=100)
+    educationLevel: str | None = Field(default=None, max_length=100)
 
 # Import/Export Schemas
 class ImportOptionInput(BaseModel):

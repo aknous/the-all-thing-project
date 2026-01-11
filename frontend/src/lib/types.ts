@@ -43,6 +43,19 @@ export interface VoteSubmission {
   rankedChoices: string[]; // Array of optionIds in preference order (for both SINGLE and RANKED)
   idempotencyKey?: string;
   turnstileToken?: string;
+  
+  // Optional demographic data from survey
+  ageRange?: string;
+  gender?: string;
+  race?: string;
+  ethnicity?: string;
+  state?: string;
+  region?: string;
+  urbanRuralSuburban?: string;
+  politicalParty?: string;
+  politicalIdeology?: string;
+  religion?: string;
+  educationLevel?: string;
 }
 
 export interface PollResult {

@@ -209,6 +209,18 @@ async def submitVote(
         regionCode=regionCode,
         firstChoiceOptionId=rankedChoices[0] if rankedChoices else None,
         createdAt=datetime.now(timezone.utc),
+        # Optional demographic data from client-side survey
+        ageRange=payload.ageRange,
+        gender=payload.gender,
+        race=payload.race,
+        ethnicity=payload.ethnicity,
+        state=payload.state,
+        region=payload.region,
+        urbanRuralSuburban=payload.urbanRuralSuburban,
+        politicalParty=payload.politicalParty,
+        politicalIdeology=payload.politicalIdeology,
+        religion=payload.religion,
+        educationLevel=payload.educationLevel,
     )
 
     db.add(ballot)
