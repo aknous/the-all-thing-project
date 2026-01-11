@@ -8,8 +8,9 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { PollCategory, Poll } from '@/lib/types'
 import { ThemeToggle } from './ThemeToggle'
 import { remToPx } from '@/lib/remToPx'
-import { hasDemographicSurvey, getDemographicData, saveDemographicData } from '@/lib/demographicSurvey'
+import { hasDemographicData, getDemographicData, saveDemographicData, clearDemographicData } from '@/lib/demographicSurvey'
 import DemographicSurveyModal, { DemographicData } from './DemographicSurveyModal'
+import { DemographicSurveyContext } from '@/contexts/DemographicSurveyContext'
 
 interface PublicLayoutProps {
   children: React.ReactNode
@@ -445,17 +446,19 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showSurveyModal, setShowSurveyModal] = useState(false)
+  const [hasSurveyData, setHasSurveyData] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // Check if user has completed demographic survey
-  const hasSurveyData = useMemo(() => {
-    if (typeof window === 'undefined') return false
-    return hasDemographicSurvey()
-  }, []) // Static check
+  // Initialize survey data state from localStorage
+  useEffect(() => {
+    setHasSurveyData(hasDemographicData())
+  }, [])
 
   const handleSurveyModalComplete = (data: DemographicData) => {
     saveDemographicData(data)
     setShowSurveyModal(false)
+    // Check if data is empty (cleared) or has values (completed)
+    setHasSurveyData(Object.keys(data).length > 0)
   }
 
   const handleSurveyModalSkip = () => {
@@ -464,6 +467,17 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
 
   const handleSurveyModalClose = () => {
     setShowSurveyModal(false)
+  }
+
+  const handleSurveyClear = () => {
+    clearDemographicData()
+    setShowSurveyModal(false)
+    setHasSurveyData(false)
+  }
+
+  const handleDemographicSurveyUpdate = () => {
+    // Re-check survey data when updated
+    setHasSurveyData(hasDemographicData())
   }
   
   // Check if there are any featured polls
@@ -541,7 +555,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-midnight-950 dark:via-midnight-950 dark:to-indigo-950">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-midnight-950 dark:via-midnight-950 dark:to-indigo-950">
       {/* Mobile menu overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
@@ -625,6 +639,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
           onComplete={handleSurveyModalComplete}
           onSkip={handleSurveyModalSkip}
           onClose={handleSurveyModalClose}
+          onClear={handleSurveyClear}
           initialData={getDemographicData() || undefined}
           isEditMode={true}
         />
@@ -677,7 +692,7 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72 flex-1">
+      <div className="lg:pl-72 flex-1 flex flex-col">
         {/* Top header */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-midnight-200 dark:border-midnight-800 bg-white/95 dark:bg-midnight-900/80 backdrop-blur px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
@@ -775,19 +790,19 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
               </div>
               
               <div className="flex items-center gap-4 ml-auto">
-                {hasSurveyData && (
-                  <button
-                    onClick={() => setShowSurveyModal(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white transition-colors rounded-lg hover:bg-midnight-100 dark:hover:bg-midnight-800"
-                    aria-label="View demographic survey"
-                  >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="hidden sm:inline">Survey</span>
+                <button
+                  onClick={() => setShowSurveyModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-midnight-600 hover:text-midnight-950 dark:text-midnight-100 dark:hover:text-white transition-colors rounded-lg hover:bg-midnight-100 dark:hover:bg-midnight-800"
+                  aria-label="Demographic survey"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="hidden sm:inline">Survey</span>
+                  {hasSurveyData && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400">✓</span>
-                  </button>
-                )}
+                  )}
+                </button>
                 <ThemeToggle />
               </div>
             </div>
@@ -795,9 +810,21 @@ export function PublicLayout({ children, categories, onCategoryChange, activeCat
         </div>
 
         {/* Page content */}
-        <main className="py-10">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+        <main className="py-10 flex-1">
+          <DemographicSurveyContext.Provider value={{ onSurveyUpdate: handleDemographicSurveyUpdate }}>
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+          </DemographicSurveyContext.Provider>
         </main>
+
+        {/* Footer */}
+        <footer className="border-t border-midnight-200 dark:border-midnight-800 bg-white/80 dark:bg-midnight-900/80 backdrop-blur-sm py-4">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <p className="text-xs text-center text-midnight-500 dark:text-midnight-400">
+              We use a necessary cookie to prevent duplicate voting. Your votes and optional demographic data are stored locally in your browser. 
+              <Link href="/privacy" className="ml-1 underline hover:text-midnight-700 dark:hover:text-midnight-200">Privacy Policy</Link>
+            </p>
+          </div>
+        </footer>
       </div>
     </div>
   )

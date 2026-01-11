@@ -25,7 +25,7 @@ function findParentCategory(categories: PollCategory[], childId: string): PollCa
 function CategorySection({ 
   category, 
   allCategories,
-  depth = 0 
+  depth = 0
 }: { 
   category: PollCategory;
   allCategories: PollCategory[];
@@ -69,7 +69,7 @@ function CategorySection({
               key={subCategory.categoryId} 
               category={subCategory}
               allCategories={allCategories}
-              depth={depth + 1} 
+              depth={depth + 1}
             />
           ))}
         </div>
