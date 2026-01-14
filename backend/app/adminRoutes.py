@@ -276,6 +276,96 @@ async def createCategory(
     await db.commit()
     return {"ok": True, "category": serializeCategory(category)}
 
+@router.get("/analytics")
+async def getAnalytics(
+    db: AsyncSession = Depends(getDb),
+    admin: AdminContext = Depends(requireAdmin)
+):
+    """
+    Get voting analytics for the dashboard:
+    - Total votes (all time)
+    - Unique instances voted on
+    - Total votes today
+    - Unique instances voted today
+    - Daily vote breakdown (last 30 days)
+    """
+    from sqlalchemy import func
+    from .models import VoteBallot
+    from datetime import date, timedelta
+    import zoneinfo
+    
+    # Get today in Eastern timezone
+    eastern = zoneinfo.ZoneInfo("America/New_York")
+    from datetime import datetime
+    today = datetime.now(eastern).date()
+    
+    # Helper to convert timestamp to Eastern date
+    # PostgreSQL: (createdAt AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York'
+    def eastern_date(timestamp_col):
+        return func.date(
+            func.timezone('America/New_York',
+                func.timezone('UTC', timestamp_col))
+        )
+    
+    # Total votes all time
+    total_votes_result = await db.execute(
+        select(func.count(VoteBallot.id))
+    )
+    total_votes = total_votes_result.scalar() or 0
+    
+    # Unique instances voted on all time
+    unique_instances_result = await db.execute(
+        select(func.count(func.distinct(VoteBallot.instanceId)))
+    )
+    unique_instances = unique_instances_result.scalar() or 0
+    
+    # Today's votes (convert timestamp to Eastern date before comparing)
+    today_votes_result = await db.execute(
+        select(func.count(VoteBallot.id))
+        .where(eastern_date(VoteBallot.createdAt) == today)
+    )
+    today_votes = today_votes_result.scalar() or 0
+    
+    # Unique instances voted today
+    today_instances_result = await db.execute(
+        select(func.count(func.distinct(VoteBallot.instanceId)))
+        .where(eastern_date(VoteBallot.createdAt) == today)
+    )
+    today_instances = today_instances_result.scalar() or 0
+    
+    # Daily breakdown for last 30 days
+    thirty_days_ago = today - timedelta(days=30)
+    
+    # Create the date expression once to reuse
+    date_expr = eastern_date(VoteBallot.createdAt)
+    
+    daily_stats_result = await db.execute(
+        select(
+            date_expr.label('date'),
+            func.count(VoteBallot.id).label('votes'),
+            func.count(func.distinct(VoteBallot.instanceId)).label('instances')
+        )
+        .where(date_expr >= thirty_days_ago)
+        .group_by(date_expr)
+        .order_by(date_expr.desc())
+    )
+    
+    daily_breakdown = []
+    for row in daily_stats_result:
+        daily_breakdown.append({
+            "date": row.date.isoformat() if row.date else None,
+            "votes": row.votes,
+            "instances": row.instances
+        })
+    
+    return {
+        "totalVotes": total_votes,
+        "uniqueInstances": unique_instances,
+        "todayVotes": today_votes,
+        "todayInstances": today_instances,
+        "dailyBreakdown": daily_breakdown
+    }
+
 @router.get("/categories")
 async def listCategories(db: AsyncSession = Depends(getDb)):
     stmt = (
@@ -1728,3 +1818,4 @@ async def deletePreset(
     )
     
     return {"message": "Preset deleted successfully"}
+
