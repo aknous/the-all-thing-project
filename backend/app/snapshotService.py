@@ -28,20 +28,32 @@ def extractSnapshotFields(results: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def upsertResultSnapshot(db: AsyncSession, pollId: str) -> bool:
+async def upsertResultSnapshot(db: AsyncSession, pollId: str, minVotes: int = 10) -> bool:
     """
     Builds final results for pollId and upserts a snapshot.
-    Returns True if inserted/updated, False if poll not found.
+    Only creates snapshots if there are at least minVotes votes.
+    Returns True if inserted/updated, False if poll not found or insufficient votes.
     """
     results = await buildResults(db, pollId)
     if not results.get("found"):
         return False
 
+    # Extract vote counts to check minimum threshold
+    fields = extractSnapshotFields(results)
+    
+    # Skip snapshot creation if insufficient votes
+    if fields["totalBallots"] < minVotes:
+        # Delete existing snapshot if present (poll might have had votes that were removed)
+        existing = (await db.execute(
+            select(PollResultSnapshot).where(PollResultSnapshot.instanceId == pollId)
+        )).scalar_one_or_none()
+        if existing:
+            await db.delete(existing)
+        return False
+
     existing = (await db.execute(
         select(PollResultSnapshot).where(PollResultSnapshot.instanceId == pollId)
     )).scalar_one_or_none()
-
-    fields = extractSnapshotFields(results)
 
     if not existing:
         snap = PollResultSnapshot(

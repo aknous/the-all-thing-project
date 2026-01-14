@@ -112,7 +112,23 @@ async def submitVote(
     response: Response,
     db: AsyncSession = Depends(getDb),
 ):
-    # 1) identity + metadata
+    # 1) Verify request origin (prevent direct API calls)
+    origin = request.headers.get("origin") or request.headers.get("referer", "")
+    from .settings import settings
+    
+    allowed = False
+    if origin:
+        # Check if origin matches any allowed CORS origin
+        for allowed_origin in settings.corsOrigins:
+            if origin.startswith(allowed_origin.rstrip("/")):
+                allowed = True
+                break
+    
+    if not allowed:
+        logVote(pollId, "unknown", "unknown", False, "invalid_origin")
+        raise HTTPException(status_code=403, detail="Invalid request origin")
+
+    # 2) identity + metadata
     voterHash = getVoterIdentityOrSetCookie(request, response)
 
     clientIp = getClientIp(request)
@@ -123,7 +139,7 @@ async def submitVote(
 
     countryCode, regionCode = getCoarseGeo(request)
 
-    # 2) Cloudflare Turnstile verification (bot protection)
+    # 3) Cloudflare Turnstile verification (bot protection)
     if payload.turnstileToken:
         from .turnstile import verifyTurnstile
         turnstileValid = await verifyTurnstile(payload.turnstileToken, clientIp)
@@ -131,7 +147,7 @@ async def submitVote(
             logVote(pollId, voterHash, ipHash, False, "turnstile_failed")
             raise HTTPException(status_code=403, detail="Bot verification failed")
     
-    # 3) rate limiting (1 vote per IP per poll per day)
+    # 4) rate limiting (1 vote per IP per poll per day)
     allowed = await rateLimit(
         key=f"vote:{pollId}:{ipHash}",
         limit=1,
@@ -141,14 +157,14 @@ async def submitVote(
         logRateLimit("vote", ipHash, f"/polls/{pollId}/vote")
         raise HTTPException(status_code=429, detail="Too many attempts")
 
-    # 4) idempotency (optional but recommended)
+    # 5) idempotency (optional but recommended)
     if payload.idempotencyKey:
         idemKey = f"idem:{pollId}:{voterHash}:{payload.idempotencyKey}"
         if not await setIdempotency(idemKey, ttlSeconds=60):
             # Same request already processed very recently
             return {"ok": True, "deduped": True}
 
-    # 5) fast-path already voted (check both cookie and IP)
+    # 6) fast-path already voted (check both cookie and IP)
     if await hasVoted(pollId, voterHash):
         logVote(pollId, voterHash, ipHash, False, "duplicate_voter_hash")
         raise HTTPException(status_code=409, detail="Already voted")
@@ -157,7 +173,7 @@ async def submitVote(
         logVote(pollId, voterHash, ipHash, False, "duplicate_ip")
         raise HTTPException(status_code=409, detail="Already voted from this network")
 
-    # 6) load poll instance + options
+    # 7) load poll instance + options
     instance = (await db.execute(
         select(PollInstance)
         .where(PollInstance.id == pollId)
@@ -174,7 +190,7 @@ async def submitVote(
     if len(optionById) < 2:
         raise HTTPException(status_code=500, detail="Poll options misconfigured")
 
-    # 6) validate payload according to poll type
+    # 8) validate payload according to poll type
     rankedChoices = payload.rankedChoices
 
     # No duplicates
@@ -197,7 +213,7 @@ async def submitVote(
     else:
         raise HTTPException(status_code=500, detail="Unknown pollType")
 
-    # 7) write ballot + rankings transactionally
+    # 9) write ballot + rankings transactionally
     ballotId = newId()
     ballot = VoteBallot(
         id=ballotId,
@@ -215,7 +231,6 @@ async def submitVote(
         race=payload.race,
         ethnicity=payload.ethnicity,
         state=payload.state,
-        region=payload.region,
         urbanRuralSuburban=payload.urbanRuralSuburban,
         politicalParty=payload.politicalParty,
         politicalIdeology=payload.politicalIdeology,
