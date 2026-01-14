@@ -39,7 +39,7 @@ export const adminFetch = async (
     ...options,
     headers: {
       ...options.headers,
-      'xAdminKey': key,
+      'x-admin-key': key,
     },
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAdminKey } from '@/lib/adminAuth';
 
@@ -8,7 +8,79 @@ export default function AdminLogin() {
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  const addLog = (message: string) => {
+    const logEntry = `${new Date().toLocaleTimeString()}: ${message}`;
+    console.log(logEntry);
+    setDebugLog(prev => {
+      const updated = [...prev, logEntry];
+      // Save to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('adminLoginDebug', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const clearDebugLog = () => {
+    setDebugLog([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('adminLoginDebug');
+    }
+  };
+
+  // Load debug log from localStorage only on client
+  useEffect(() => {
+    setMounted(true);
+    
+    // Capture any errors that happen during render
+    const errorHandler = (event: ErrorEvent) => {
+      const errorMsg = `ERROR: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
+      console.error(errorMsg);
+      localStorage.setItem('adminPageError', errorMsg);
+    };
+    
+    window.addEventListener('error', errorHandler);
+    
+    const saved = localStorage.getItem('adminLoginDebug');
+    if (saved) {
+      try {
+        setDebugLog(JSON.parse(saved));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    // Check for captured errors
+    const pageError = localStorage.getItem('adminPageError');
+    if (pageError) {
+      addLog(`CAPTURED ERROR: ${pageError}`);
+      localStorage.removeItem('adminPageError');
+    }
+    
+    // Load layout debug info if present
+    const layoutDebug = localStorage.getItem('adminLayoutDebug');
+    if (layoutDebug) {
+      try {
+        const layoutInfo = JSON.parse(layoutDebug);
+        addLog(`LAYOUT DEBUG: ${layoutInfo.message}`);
+        addLog(`  - Timestamp: ${layoutInfo.timestamp}`);
+        addLog(`  - Path: ${layoutInfo.pathname}`);
+        addLog(`  - isAuthenticated: ${layoutInfo.isAuthenticated}`);
+        addLog(`  - sessionStorage key exists: ${!!layoutInfo.sessionStorageKey}`);
+        addLog(`  - sessionStorage key length: ${layoutInfo.sessionStorageKey?.length || 0}`);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    return () => {
+      window.removeEventListener('error', errorHandler);
+    };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -17,29 +89,40 @@ export default function AdminLogin() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      console.log('Testing admin key against:', `${apiUrl}/admin/categories`);
+      addLog(`Starting login attempt to: ${apiUrl}/admin/categories`);
+      addLog(`Key length: ${key.length} characters`);
+      addLog('Using header: x-admin-key');
       
       // Test the key by fetching categories
+      addLog('Sending fetch request...');
       const response = await fetch(`${apiUrl}/admin/categories`, {
         headers: {
-          'X-Admin-Key': key,
+          'x-admin-key': key,
         },
       });
 
-      console.log('Response status:', response.status);
+      addLog(`Response received - Status: ${response.status}, OK: ${response.ok}`);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Login failed:', errorText);
-        throw new Error(`Invalid admin key (${response.status})`);
+        addLog(`Error response body: ${errorText}`);
+        const errorMessage = `Login failed (${response.status}): ${errorText}`;
+        setError(errorMessage);
+        setLoading(false);
+        return;
       }
 
       // Key is valid, store it and redirect
+      addLog('Login successful! Storing key...');
       setAdminKey(key);
+      
+      addLog('Redirecting to /admin...');
       router.push('/admin');
     } catch (err) {
-      console.error('Login error:', err);
-      setError(err instanceof Error ? err.message : 'Invalid admin key. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      addLog(`EXCEPTION CAUGHT: ${errorMessage}`);
+      addLog(`Error stack: ${err instanceof Error ? err.stack : 'no stack'}`);
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -94,6 +177,29 @@ export default function AdminLogin() {
             Your admin key is stored in your browser session and will be cleared when you close the browser.
           </p>
         </div>
+
+        {/* Debug Log - only render on client to avoid hydration mismatch */}
+        {mounted && debugLog.length > 0 && (
+          <div className="mt-4 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg max-h-96 overflow-y-auto">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Debug Log:</h3>
+              <button
+                type="button"
+                onClick={clearDebugLog}
+                className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Clear Log
+              </button>
+            </div>
+            <div className="text-xs font-mono space-y-1">
+              {debugLog.map((log, i) => (
+                <div key={i} className="text-zinc-700 dark:text-zinc-300 break-all">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

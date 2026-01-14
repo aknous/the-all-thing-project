@@ -23,7 +23,30 @@ export default function AdminLayout({
   useEffect(() => {
     // Redirect to login if not authenticated (except on login page)
     if (hasMounted && !isAuthenticated() && pathname !== '/admin/login') {
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        hasMounted,
+        isAuthenticated: isAuthenticated(),
+        pathname,
+        sessionStorageKey: typeof window !== 'undefined' ? sessionStorage.getItem('adminKey') : null,
+        message: 'Layout redirecting to login - not authenticated'
+      };
+      console.log('[AdminLayout] Not authenticated, redirecting to login');
+      console.log('[AdminLayout] Debug info:', debugInfo);
+      localStorage.setItem('adminLayoutDebug', JSON.stringify(debugInfo));
       router.push('/admin/login');
+    } else if (hasMounted) {
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        hasMounted,
+        isAuthenticated: isAuthenticated(),
+        pathname,
+        sessionStorageKey: typeof window !== 'undefined' ? sessionStorage.getItem('adminKey') : null,
+        message: 'Layout auth check passed'
+      };
+      console.log('[AdminLayout] Auth check passed');
+      console.log('[AdminLayout] Debug info:', debugInfo);
+      localStorage.setItem('adminLayoutDebug', JSON.stringify(debugInfo));
     }
   }, [hasMounted, pathname, router]);
 

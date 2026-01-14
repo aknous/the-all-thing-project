@@ -13,7 +13,7 @@ class AdminContext:
 
 async def requireAdmin(
     request: Request,
-    xAdminKey: str = Header(default="")
+    xAdminKey: str = Header(default="", alias="x-admin-key")
 ) -> AdminContext:
     """Verify admin key and return context for audit logging"""
     # Use constant-time comparison to prevent timing attacks
