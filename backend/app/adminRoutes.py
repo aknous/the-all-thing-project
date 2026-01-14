@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+import re
 from datetime import date
 from typing import Literal, TYPE_CHECKING
 
@@ -28,6 +29,70 @@ from .models import (
     PresetOptionSet,
 )
 from .rollover import ensureInstancesForDate
+
+
+async def generateUniqueTemplateKey(db: AsyncSession, categoryId: str, title: str) -> str:
+    """
+    Generate a unique template key from the category key and title.
+    Format: {category-key}-{short-title-slug}
+    Keeps keys short for URLs by taking only first few words of title.
+    If key exists, appends a number (e.g., 'politics-approval-2').
+    """
+    # Get category to use its key as prefix
+    category = (await db.execute(
+        select(PollCategory).where(PollCategory.id == categoryId)
+    )).scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Use category key as prefix
+    category_prefix = category.key
+    
+    # Convert title to slug
+    title_slug = re.sub(r'[^a-z0-9\s-]', '', title.lower())
+    title_slug = re.sub(r'\s+', '-', title_slug.strip())
+    title_slug = re.sub(r'-+', '-', title_slug)  # Collapse multiple hyphens
+    
+    if not title_slug:
+        title_slug = "poll"
+    
+    # Take only first 2-3 words or limit to 25 chars to keep URLs short
+    words = title_slug.split('-')
+    if len(words) > 3:
+        title_slug = '-'.join(words[:3])
+    
+    # Limit title portion to 25 characters max
+    if len(title_slug) > 25:
+        title_slug = title_slug[:25].rstrip('-')
+    
+    # Combine category and title (total should be under 45 chars typically)
+    base_key = f"{category_prefix}-{title_slug}"
+    
+    # Check if key exists
+    key = base_key
+    counter = 2
+    
+    while True:
+        existing = (await db.execute(
+            select(PollTemplate).where(
+                PollTemplate.categoryId == categoryId,
+                PollTemplate.key == key
+            )
+        )).scalar_one_or_none()
+        
+        if not existing:
+            return key
+        
+        # Key exists, try with number suffix
+        key = f"{base_key}-{counter}"
+        counter += 1
+        
+        # Safety limit to prevent infinite loop
+        if counter > 1000:
+            # Fallback to UUID-based key
+            return f"{base_key}-{uuid.uuid4().hex[:8]}"
+
 from .schemas import (
     ImportDataInput,
     CreatePresetInput,
@@ -70,7 +135,6 @@ Audience = Literal["PUBLIC", "USER_ONLY"]
 
 class TemplateCreateInput(BaseModel):
     categoryId: str
-    key: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9\-]+$")
     title: str = Field(min_length=2, max_length=256)
     question: str | None = Field(default=None, max_length=1000)
 
@@ -309,8 +373,8 @@ async def patchCategory(categoryId: str, payload: CategoryUpdateInput, db: Async
 
 @router.post("/templates")
 async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depends(getDb)):
-    # Sanitize inputs
-    sanitizedKey = sanitize.sanitizeKey(payload.key, maxLength=64)
+    # Auto-generate unique key from title
+    sanitizedKey = await generateUniqueTemplateKey(db, payload.categoryId, payload.title)
     sanitizedTitle = sanitize.sanitizeTitle(payload.title, maxLength=256)
     sanitizedQuestion = sanitize.sanitizeQuestion(payload.question, maxLength=1000)
     
@@ -319,12 +383,7 @@ async def createTemplate(payload: TemplateCreateInput, db: AsyncSession = Depend
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # enforce unique (categoryId, key)
-    existing = (await db.execute(
-        select(PollTemplate).where(PollTemplate.categoryId == payload.categoryId, PollTemplate.key == sanitizedKey)
-    )).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=409, detail="Template key already exists in this category")
+    # Key uniqueness is already guaranteed by generateUniqueTemplateKey
 
     if payload.pollType == "RANKED" and payload.maxRank is not None and payload.maxRank < 2:
         raise HTTPException(status_code=422, detail="maxRank must be >= 2 for ranked polls")

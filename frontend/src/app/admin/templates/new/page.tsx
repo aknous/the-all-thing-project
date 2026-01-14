@@ -45,7 +45,6 @@ export default function NewTemplatePage() {
 
   const [formData, setFormData] = useState({
     categoryId: '',
-    key: '',
     title: '',
     question: '',
     pollType: 'SINGLE' as 'SINGLE' | 'RANKED',
@@ -167,7 +166,7 @@ export default function NewTemplatePage() {
     e.preventDefault();
     
     // Validation
-    if (!formData.categoryId || !formData.key || !formData.title) {
+    if (!formData.categoryId || !formData.title) {
       alert('Please fill in all required fields');
       return;
     }
@@ -184,7 +183,6 @@ export default function NewTemplatePage() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       const payload = {
         categoryId: formData.categoryId,
-        key: formData.key,
         title: formData.title,
         question: formData.question || null,
         pollType: formData.pollType,
@@ -262,21 +260,6 @@ export default function NewTemplatePage() {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              Key * (lowercase, no spaces)
-            </label>
-            <input
-              type="text"
-              value={formData.key}
-              onChange={(e) => setFormData({ ...formData, key: e.target.value.toLowerCase().replace(/\s/g, '-') })}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg
-                       bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-              placeholder="my-poll-key"
-              required
-            />
           </div>
 
           <div>
