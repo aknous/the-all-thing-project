@@ -62,7 +62,7 @@ export default function AdminDashboard() {
       console.log('[Dashboard] Categories status:', categoriesRes.status);
       console.log('[Dashboard] Templates status:', templatesRes.status);
       console.log('[Dashboard] Instances status:', instancesRes.status);
-      console.log('[Dashboard] Analytics status:', analyticsRes.status);
+      console.log('[Dashboard] Analytics status:', analyticsRes?.status || 'failed');
 
       const categoriesData = await categoriesRes.json();
       const templatesData = await templatesRes.json();
